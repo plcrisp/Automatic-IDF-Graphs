@@ -9,88 +9,7 @@ from xlwt import Workbook
 import xlrd
 import statistics
 
-## Quantile mapping que deu ruim!
-def map(vals):
-    """ CDF mapping for bias correction """
-    """ note that values exceeding the range of the training set"""
-    """ are set to -999 at the moment - possibly could leave unchanged?"""
-    # calculate exact CDF values using linear interpolation
-    #
-    cdf1=np.interp(vals,xbins,cdfmod,left=0.0,right=999.0)
-    # now use interpol again to invert the obsCDF, hence reversed x,y
-    corrected=np.interp(cdf1,cdfobs,xbins,left=0.0,right=-999.0)
-    return corrected
 
-def bc_quantile_mapping(obs_data, baseline_model, future_model_to_bias_correct):
-    """function to make quantile(CDF)-mapping bias correction"""
-    """Adrian Tompkins tompkins@ictp.it - please feel free to use"""
-    
-    global cdfobs,cdfmod,xbins
-    n=100
-    cdfn=10
-    
-    # make some fake observations(obs) and model (mod) data:
-    #obs_data, baseline_model and future_model_to_bias_correct must be arrays or list
-    obs= obs_data
-    mod= baseline_model
-    
-    # sort the arrays
-    obs=np.sort(obs)
-    mod=np.sort(mod)
-    
-    # calculate the global max and bins.
-    global_max=max(np.amax(obs),np.amax(mod))
-    wide=global_max/cdfn
-    xbins=np.arange(0.0,global_max+wide,wide)
-    
-    # create PDF
-    pdfobs,bins=np.histogram(obs,bins=xbins)
-    pdfmod,bins=np.histogram(mod,bins=xbins)
-    
-    # create CDF with zero in first entry.
-    cdfobs=np.insert(np.cumsum(pdfobs),0,0.0)
-    cdfmod=np.insert(np.cumsum(pdfmod),0,0.0)
-    
-    return map(future_model_to_bias_correct)
-
-
-def correct_by_quantile_mapping(name_gcm, scenario):
-    bias_correction_method = 'QM'
-    
-    if scenario == 'rcp 4.5':
-        scenario_2 = 'rcp45'
-    elif scenario == 'rcp 8.5':
-        scenario_2 = 'rcp85'
-    else:
-        scenario_2 = scenario
-
-    if name_gcm == 'HADGEM':
-        df_future_model = pd.read_csv('GCM_data/{n}_{s}_complete.csv'.format(n = name_gcm, s = scenario_2))
-        df_baseline = pd.read_csv('GCM_data/{n}_baseline_complete.csv'.format(n = name_gcm))
-    else:
-        df_future_model = pd.read_csv('GCM_data/{n}_{s}.csv'.format(n = name_gcm, s = scenario_2))
-        df_baseline = pd.read_csv('GCM_data/{n}_baseline.csv'.format(n = name_gcm))
-    
-    df_obs_data = pd.read_csv('Results/INMET_conv_daily_2.csv')
-    
-    obs_data = df_obs_data['Precipitation'].dropna().to_list()    
-    future_model = df_future_model['Precipitation'].dropna().to_list()
-    baseline_model = df_baseline['Precipitation'].dropna().to_list()    
-  
-    future_corrected = bc_quantile_mapping(obs_data, baseline_model, future_model)
-    #print(future_model)
-    #print(future_corrected)
-    
-    df_future_model['Precipitation_corrected'] = future_corrected
-    if name_gcm == 'HADGEM':
-        df_future_model.columns = ['Date', 'Precipitation_original', 'Year', 'Month', 'Day', 'Precipitation']
-    else:
-        df_future_model.columns = ['Year', 'Month', 'Day', 'Precipitation_original', 'Precipitation']
-    #print(df_future_model)
-    df_future_model.to_csv('GCM_data/bias_correction/{g}_{s}_{bc}_daily.csv'.format(g = name_gcm, s = scenario_2, bc = bias_correction_method), index = False)
-
-
-## Quantile mapping bias correction certo
 def fit_distribution(data):
     MY_DISTRIBUTIONS = [st.norm, st.lognorm, st.genextreme, st.gumbel_r, st.genlogistic]
     results = fit_data(data, MY_DISTRIBUTIONS)
@@ -183,7 +102,7 @@ def quantile_mapping_future(data_obs, data_gcm_baseline, data_gcm_future):
     
     return data_spatdown_future
 
-def correct_baseline_by_quantile_mapping(name_gcm):
+def correct_baseline_by_quantile_mapping(name_gcm, name_obs):
     bias_correction_method = 'QM_adj'
 
     if name_gcm == 'HADGEM':
@@ -191,7 +110,7 @@ def correct_baseline_by_quantile_mapping(name_gcm):
     else:
         df_baseline = pd.read_csv('GCM_data/{n}_baseline.csv'.format(n = name_gcm))
     
-    df_obs_data = pd.read_csv('Results/INMET_conv_daily_2.csv')
+    df_obs_data = pd.read_csv('{n_obs}'.format(n_obs = name_obs))
     
     data_obs = df_obs_data[['Precipitation']].dropna().values.ravel()    
     data_gcm_baseline = df_baseline[['Precipitation']].dropna().values.ravel()  
@@ -482,8 +401,9 @@ if __name__ == '__main__':
 #     print('')
 #     print('Quantile mapping bias correction..')
 #     
-#     #correct_baseline_by_quantile_mapping('HADGEM')
-#     correct_baseline_by_quantile_mapping('MIROC5')
+#     name_obs = 'Results/INMET_conv_daily_2.csv'
+#     #correct_baseline_by_quantile_mapping('HADGEM', name_obs)
+#     correct_baseline_by_quantile_mapping('MIROC5', name_obs)
 #      
 #     print('')
 #     print('Getting PT and MD files..')
