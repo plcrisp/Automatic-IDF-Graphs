@@ -127,7 +127,41 @@ def correct_baseline_by_quantile_mapping(name_gcm, name_obs):
     #print(df_future_model)
     df_baseline.to_csv('GCM_data/bias_correction/{g}_baseline_{bc}_daily.csv'.format(g = name_gcm, bc = bias_correction_method), index = False)
 
+def correct_future_by_quantile_mapping(name_gcm, scenario, name_obs):
+    bias_correction_method = 'QM_adj'
 
+    if scenario == 'rcp 4.5':
+        scenario_2 = 'rcp45'
+    elif scenario == 'rcp 8.5':
+        scenario_2 = 'rcp85'
+    else:
+        scenario_2 = scenario
+
+    if name_gcm == 'HADGEM':
+        df_baseline = pd.read_csv('GCM_data/{n}_baseline_complete.csv'.format(n = name_gcm))
+        df_gcm_future = pd.read_csv('GCM_data/{n}_{sc}_complete.csv'.format(n = name_gcm, sc = scenario_2))
+    else:
+        df_baseline = pd.read_csv('GCM_data/{n}_baseline.csv'.format(n = name_gcm))
+        df_gcm_future = pd.read_csv('GCM_data/{n}_{sc}.csv'.format(n = name_gcm, sc = scenario_2))
+    
+    df_obs_data = pd.read_csv(name_obs)
+    
+    data_obs = df_obs_data[['Precipitation']].dropna().values.ravel()    
+    data_gcm_baseline = df_baseline[['Precipitation']].dropna().values.ravel()  
+    data_gcm_future = df_gcm_future[['Precipitation']].dropna().values.ravel()  
+  
+    future_corrected = quantile_mapping_future(data_obs, data_gcm_baseline, data_gcm_future)
+    print(future_corrected)
+    
+    df_gcm_future['Precipitation_corrected'] = future_corrected
+    if name_gcm == 'HADGEM':
+        df_gcm_future.columns = ['Date', 'Precipitation_original', 'Year', 'Month', 'Day', 'Precipitation']
+    else:
+        df_gcm_future.columns = ['Year', 'Month', 'Day', 'Precipitation_original', 'Precipitation']
+    #print(df_future_model)
+    df_gcm_future.to_csv('GCM_data/bias_correction/{g}_{sc}_{bc}_daily.csv'.format(g = name_gcm, sc = scenario_2, bc = bias_correction_method), index = False)
+
+    
 ## DBC bias correction
 def dbc_calib_valid(name_gcm, nyears=20):
     #nyears = number of years to calibrate and validate
@@ -402,8 +436,12 @@ if __name__ == '__main__':
 #     print('Quantile mapping bias correction..')
 #     
 #     name_obs = 'Results/INMET_conv_daily_2.csv'
-#     #correct_baseline_by_quantile_mapping('HADGEM', name_obs)
+#     scenario = 'rcp 4.5'
+#   
+#     correct_baseline_by_quantile_mapping('HADGEM', name_obs)
 #     correct_baseline_by_quantile_mapping('MIROC5', name_obs)
+#     correct_future_by_quantile_mapping('HADGEM', scenario, name_obs)
+#     correct_future_by_quantile_mapping('MIROC5', scenario, name_obs)
 #      
 #     print('')
 #     print('Getting PT and MD files..')
