@@ -25,4 +25,5 @@ You will need to create the following folders:
 
 !!! NEW INFO:
 Use the transform_daily_data to calculate the subdaily max.
+The "fatores_desagregacao.csv" contain the disagreggation factors for the Sao Paulo state. This file should be in the main directory where you are running the code (not inside any folder).
 I put one file "INMET_conv_daily" as an example of how is the input file. I believe you already have the observed data like this. One important note is that in the code this file is inside the "Results" folder. You can change this as you want!!
