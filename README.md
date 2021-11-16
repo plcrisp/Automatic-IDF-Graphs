@@ -20,3 +20,9 @@ You will need to create the following folders:
 - GCM_data -> The code will save the formatted csv files in this folder
 - CMhyd -> Where we will save the data obtained from CMhyd
 - Results -> It must contain the historical observed data in the formats that I shared with you.
+
+
+
+!!! NEW INFO:
+Use the transform_daily_data to calculate the subdaily max.
+I put one file "INMET_conv_daily" as an example of how is the input file. I believe you already have the observed data like this. One important note is that in the code this file is inside the "Results" folder. You can change this as you want!!
