@@ -80,6 +80,24 @@ print('P90 INMET / Automatic: ', p90_function(INMET_aut))
 print('P90 INMET / Conventional: ', p90_function(INMET_conv))
 
 ## TREND ANALYSIS
+
+#Aggregate to year
+def aggregate_to_csv_year(df, name, directory = 'Results'):
+    df_yearly = aggregate(df, 'Year')
+    df_yearly.to_csv('{d}/{n}_yearly.csv'.format(n = name, d = directory), index = False)
+
+aggregate_to_csv_year(INMET_conv, 'INMET_conv')
+aggregate_to_csv_year(INMET_aut, 'INMET_aut')
+
+
+#Calculate annual max daily precipitation
+def get_max_daily(df, name, directory = 'Results'):
+    df_max = max_annual_precipitation(df)
+    df_max.to_csv('{d}/max_daily_{n}.csv'.format(n = name, d = directory), index = False)
+
+get_max_daily(INMET_conv, 'INMET_conv')
+get_max_daily(INMET_aut, 'INMET_aut')
+
 alpha_value = 0.05
  
 print('Annual precipitation')
