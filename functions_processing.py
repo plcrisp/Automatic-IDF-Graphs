@@ -10,7 +10,7 @@ from sklearn.linear_model import LinearRegression
 import pymannkendall as mk
 import statsmodels.api as sm
 
-def treat_CEMADEN():
+def process_CEMADEN():
     for i in range(0, 62):
         if i == 0:
             CEMADEN_df = pd.read_csv('CEMADEN/data ({n}).csv'.format(n = i), sep = ';')
@@ -48,7 +48,7 @@ def treat_CEMADEN():
     
     return jd_sp, cidade_jardim, agua_vermelha
 
-def treat_INMET():
+def process_INMET():
     INMET_aut_df = pd.read_csv('INMET/data_aut_8h.csv', sep = ';')
     INMET_aut_df.columns = ['Date', 'Hour', 'Precipitation', 'Null']
     INMET_aut_df = INMET_aut_df[['Date', 'Hour', 'Precipitation']]
@@ -75,7 +75,7 @@ def treat_INMET():
     
     return INMET_aut_df, INMET_conv_df
 
-def treat_INMET_daily():
+def process_INMET_daily():
     INMET_aut_df = pd.read_csv('INMET/data_aut_daily.csv', sep = ';') 
     INMET_aut_df.columns = ['Date', 'Precipitation', 'Null']
     INMET_aut_df = INMET_aut_df[['Date', 'Precipitation']]
@@ -95,7 +95,7 @@ def treat_INMET_daily():
     
     return INMET_aut_df, INMET_conv_df
 
-def treat_MAPLU():
+def process_MAPLU():
     for i in range(2015, 2019):
         if i == 2015:
             MAPLU_esc_df = pd.read_csv('MAPLU/escola{n}.csv'.format(n = i))
@@ -152,7 +152,7 @@ def treat_MAPLU():
     
     return MAPLU_esc_df, MAPLU_post_df
 
-def treat_MAPLU_USP():
+def process_MAPLU_USP():
     MAPLU_usp_df = pd.read_csv('MAPLU/USP2.csv')
     
     MAPLU_usp_df[['Hour', 'Min']] = MAPLU_usp_df.Time.str.split(":", expand=True)
@@ -950,18 +950,18 @@ def plot_subdaily_maximum_relative(name_file, max_hour, var_value):
     df_final = pd.concat([df, df_ger, df_m20, df_p20], ignore_index = True, sort = False)
     df_final = df_final[['Year', 'Max_1', 'Max_6', 'Max_8', 'Max_10', 'Max_12', 'Max_24', 'Type']]
     
-    df_obs_treat = df_final.loc[df_final['Type'] == 'Observed'].reset_index()
-    df_ger_treat = df_final.loc[df_final['Type'] == 'CETESB'].reset_index()
-    df_mvar_treat = df_final[df_final['Type'] == 'CETESB_-{v}'.format(v = var_value)].reset_index()
-    df_pvar_treat = df_final[df_final['Type'] == 'CETESB_+{v}'.format(v = var_value)].reset_index()
+    df_obs_process = df_final.loc[df_final['Type'] == 'Observed'].reset_index()
+    df_ger_process = df_final.loc[df_final['Type'] == 'CETESB'].reset_index()
+    df_mvar_process = df_final[df_final['Type'] == 'CETESB_-{v}'.format(v = var_value)].reset_index()
+    df_pvar_process = df_final[df_final['Type'] == 'CETESB_+{v}'.format(v = var_value)].reset_index()
     
-    df_ger_treat['Dif_{m}'.format(m = max_hour)] = df_obs_treat['Max_{m}'.format(m = max_hour)] - df_ger_treat['Max_{m}'.format(m = max_hour)]
-    df_mvar_treat['Dif_{m}'.format(m = max_hour)] = df_obs_treat['Max_{m}'.format(m = max_hour)] - df_mvar_treat['Max_{m}'.format(m = max_hour)]
-    df_pvar_treat['Dif_{m}'.format(m = max_hour)] = df_obs_treat['Max_{m}'.format(m = max_hour)] - df_pvar_treat['Max_{m}'.format(m = max_hour)]
+    df_ger_process['Dif_{m}'.format(m = max_hour)] = df_obs_process['Max_{m}'.format(m = max_hour)] - df_ger_process['Max_{m}'.format(m = max_hour)]
+    df_mvar_process['Dif_{m}'.format(m = max_hour)] = df_obs_process['Max_{m}'.format(m = max_hour)] - df_mvar_process['Max_{m}'.format(m = max_hour)]
+    df_pvar_process['Dif_{m}'.format(m = max_hour)] = df_obs_process['Max_{m}'.format(m = max_hour)] - df_pvar_process['Max_{m}'.format(m = max_hour)]
     
-    sum_error_ger = df_ger_treat['Dif_{m}'.format(m = max_hour)].sum()
-    sum_error_mvar = df_mvar_treat['Dif_{m}'.format(m = max_hour)].sum()
-    sum_error_pvar = df_pvar_treat['Dif_{m}'.format(m = max_hour)].sum()
+    sum_error_ger = df_ger_process['Dif_{m}'.format(m = max_hour)].sum()
+    sum_error_mvar = df_mvar_process['Dif_{m}'.format(m = max_hour)].sum()
+    sum_error_pvar = df_pvar_process['Dif_{m}'.format(m = max_hour)].sum()
     
     print('sum_error_ger / {v}: '.format(v = var_value), sum_error_ger)
     print('')
@@ -970,7 +970,7 @@ def plot_subdaily_maximum_relative(name_file, max_hour, var_value):
     print('sum_error_pvar / {v}: '.format(v = var_value), sum_error_pvar)    
     print('')
     
-    df_graph = pd.concat([df_ger_treat, df_mvar_treat, df_pvar_treat], ignore_index = True, sort = False)
+    df_graph = pd.concat([df_ger_process, df_mvar_process, df_pvar_process], ignore_index = True, sort = False)
     
     g = sns.catplot(x="Year", y="Dif_{m}".format(m = max_hour), hue = 'Type', data=df_graph, kind = 'bar', height = 5, aspect = 1.5)
     g.set_axis_labels('', 'Precipitation')
@@ -1018,23 +1018,23 @@ def plot_subdaily_maximum_BL(max_hour):
     print('Graph absolute Max_{m}h done!..'.format(m = max_hour))
     print('')
     
-    df_inmet_obs_treat = df_final.loc[df_final['Type'] == 'INMET_aut observed'].reset_index()
-    df_inmet_ger_treat = df_final.loc[df_final['Type'] == 'INMET_aut CETESB'].reset_index()
-    df_inmet_bl_treat = df_final[df_final['Type'] == 'INMET_aut BL'].reset_index()
-    df_maplu_obs_treat = df_final.loc[df_final['Type'] == 'MAPLU_usp observed'].reset_index()
-    df_maplu_ger_treat = df_final.loc[df_final['Type'] == 'MAPLU_usp CETESB'].reset_index()
-    df_maplu_bl_treat = df_final[df_final['Type'] == 'MAPLU_usp BL'].reset_index()
+    df_inmet_obs_process = df_final.loc[df_final['Type'] == 'INMET_aut observed'].reset_index()
+    df_inmet_ger_process = df_final.loc[df_final['Type'] == 'INMET_aut CETESB'].reset_index()
+    df_inmet_bl_process = df_final[df_final['Type'] == 'INMET_aut BL'].reset_index()
+    df_maplu_obs_process = df_final.loc[df_final['Type'] == 'MAPLU_usp observed'].reset_index()
+    df_maplu_ger_process = df_final.loc[df_final['Type'] == 'MAPLU_usp CETESB'].reset_index()
+    df_maplu_bl_process = df_final[df_final['Type'] == 'MAPLU_usp BL'].reset_index()
     
-    df_inmet_ger_treat['Dif_{m}'.format(m = max_hour)] = df_inmet_obs_treat['Max_{m}'.format(m = max_hour)] - df_inmet_ger_treat['Max_{m}'.format(m = max_hour)]
-    df_inmet_bl_treat['Dif_{m}'.format(m = max_hour)] = df_inmet_obs_treat['Max_{m}'.format(m = max_hour)] - df_inmet_bl_treat['Max_{m}'.format(m = max_hour)]
-    df_maplu_ger_treat['Dif_{m}'.format(m = max_hour)] = df_maplu_obs_treat['Max_{m}'.format(m = max_hour)] - df_maplu_ger_treat['Max_{m}'.format(m = max_hour)]
-    df_maplu_bl_treat['Dif_{m}'.format(m = max_hour)] = df_maplu_obs_treat['Max_{m}'.format(m = max_hour)] - df_maplu_bl_treat['Max_{m}'.format(m = max_hour)]
+    df_inmet_ger_process['Dif_{m}'.format(m = max_hour)] = df_inmet_obs_process['Max_{m}'.format(m = max_hour)] - df_inmet_ger_process['Max_{m}'.format(m = max_hour)]
+    df_inmet_bl_process['Dif_{m}'.format(m = max_hour)] = df_inmet_obs_process['Max_{m}'.format(m = max_hour)] - df_inmet_bl_process['Max_{m}'.format(m = max_hour)]
+    df_maplu_ger_process['Dif_{m}'.format(m = max_hour)] = df_maplu_obs_process['Max_{m}'.format(m = max_hour)] - df_maplu_ger_process['Max_{m}'.format(m = max_hour)]
+    df_maplu_bl_process['Dif_{m}'.format(m = max_hour)] = df_maplu_obs_process['Max_{m}'.format(m = max_hour)] - df_maplu_bl_process['Max_{m}'.format(m = max_hour)]
     
     
-    sum_error_inmet_ger = df_inmet_ger_treat['Dif_{m}'.format(m = max_hour)].sum()
-    sum_error_inmet_bl = df_inmet_bl_treat['Dif_{m}'.format(m = max_hour)].sum()
-    sum_error_maplu_ger = df_maplu_ger_treat['Dif_{m}'.format(m = max_hour)].sum()
-    sum_error_maplu_bl = df_maplu_bl_treat['Dif_{m}'.format(m = max_hour)].sum()
+    sum_error_inmet_ger = df_inmet_ger_process['Dif_{m}'.format(m = max_hour)].sum()
+    sum_error_inmet_bl = df_inmet_bl_process['Dif_{m}'.format(m = max_hour)].sum()
+    sum_error_maplu_ger = df_maplu_ger_process['Dif_{m}'.format(m = max_hour)].sum()
+    sum_error_maplu_bl = df_maplu_bl_process['Dif_{m}'.format(m = max_hour)].sum()
 
     
     print('sum_error_inmet_ger: ', sum_error_inmet_ger)
@@ -1047,7 +1047,7 @@ def plot_subdaily_maximum_BL(max_hour):
     print('')
 
 
-    df_graph = pd.concat([df_inmet_ger_treat, df_inmet_bl_treat, df_maplu_ger_treat, df_maplu_bl_treat], ignore_index = True, sort = False)
+    df_graph = pd.concat([df_inmet_ger_process, df_inmet_bl_process, df_maplu_ger_process, df_maplu_bl_process], ignore_index = True, sort = False)
     
     h = sns.catplot(x="Year", y="Dif_{m}".format(m = max_hour), hue = 'Type', data=df_graph, kind = 'bar', height = 5, aspect = 1.5)
     h.set_axis_labels('', 'Precipitation')
@@ -1095,22 +1095,22 @@ def plot_optimized_subdaily(name_file, max_hour):
     df_final = pd.concat([df, df_ger, df_opt], ignore_index = True, sort = False)
     df_final = df_final[['Year', 'Max_1', 'Max_6', 'Max_8', 'Max_10', 'Max_12', 'Max_24', 'Type']]
     
-    df_obs_treat = df_final.loc[df_final['Type'] == 'Observed'].reset_index()
-    df_ger_treat = df_final.loc[df_final['Type'] == 'CETESB'].reset_index()
-    df_opt_treat = df_final[df_final['Type'] == 'CETESB_otimizado'].reset_index()
+    df_obs_process = df_final.loc[df_final['Type'] == 'Observed'].reset_index()
+    df_ger_process = df_final.loc[df_final['Type'] == 'CETESB'].reset_index()
+    df_opt_process = df_final[df_final['Type'] == 'CETESB_otimizado'].reset_index()
     
-    df_ger_treat['Dif_{m}'.format(m = max_hour)] = df_obs_treat['Max_{m}'.format(m = max_hour)] - df_ger_treat['Max_{m}'.format(m = max_hour)]
-    df_opt_treat['Dif_{m}'.format(m = max_hour)] = df_obs_treat['Max_{m}'.format(m = max_hour)] - df_opt_treat['Max_{m}'.format(m = max_hour)]
+    df_ger_process['Dif_{m}'.format(m = max_hour)] = df_obs_process['Max_{m}'.format(m = max_hour)] - df_ger_process['Max_{m}'.format(m = max_hour)]
+    df_opt_process['Dif_{m}'.format(m = max_hour)] = df_obs_process['Max_{m}'.format(m = max_hour)] - df_opt_process['Max_{m}'.format(m = max_hour)]
     
-    sum_error_ger = df_ger_treat['Dif_{m}'.format(m = max_hour)].sum()
-    sum_error_mvar = df_opt_treat['Dif_{m}'.format(m = max_hour)].sum()
+    sum_error_ger = df_ger_process['Dif_{m}'.format(m = max_hour)].sum()
+    sum_error_mvar = df_opt_process['Dif_{m}'.format(m = max_hour)].sum()
     
     print('sum_error_ger : ', sum_error_ger)
     print('')
     print('sum_error_opt: ', sum_error_mvar)
     print('')
     
-    df_graph = pd.concat([df_ger_treat, df_opt_treat], ignore_index = True, sort = False)
+    df_graph = pd.concat([df_ger_process, df_opt_process], ignore_index = True, sort = False)
     
     g = sns.catplot(x="Year", y="Dif_{m}".format(m = max_hour), hue = 'Type', data=df_graph, kind = 'bar', height = 5, aspect = 1.5)
     g.set_axis_labels('', 'Precipitation')
@@ -1158,9 +1158,9 @@ def remove_outliers_from_max(df):
 
 if __name__ == '__main__':
     print('Starting..')
-#     jd_sp, cidade_jardim, agua_vermelha = treat_CEMADEN()
-#     INMET_aut, INMET_conv = treat_INMET()
-#     MAPLU_esc, MAPLU_post = treat_MAPLU()
+#     jd_sp, cidade_jardim, agua_vermelha = process_CEMADEN()
+#     INMET_aut, INMET_conv = process_INMET()
+#     MAPLU_esc, MAPLU_post = process_MAPLU()
 #        
 #     aggregate_to_csv(jd_sp, 'jd_sp') 
 #     aggregate_to_csv(cidade_jardim, 'cidade_jardim') 
@@ -1172,7 +1172,7 @@ if __name__ == '__main__':
 #     aggregate_hourly_to_csv(MAPLU_esc, 'MAPLU_esc') 
 #     aggregate_hourly_to_csv(MAPLU_post, 'MAPLU_post')
 #     
-#     MAPLU_usp = treat_MAPLU_USP()
+#     MAPLU_usp = process_MAPLU_USP()
 #     aggregate_to_csv(MAPLU_usp, 'MAPLU_usp')
 #     aggregate_hourly_to_csv(MAPLU_usp, 'MAPLU_usp')
 # 
