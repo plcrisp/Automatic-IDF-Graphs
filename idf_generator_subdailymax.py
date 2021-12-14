@@ -287,7 +287,7 @@ def get_final_idf_params(name_file, MY_DISTRIBUTIONS, dist, directory = 'Results
 
 
 if __name__ == '__main__':
-    name_file = 'complete_MIROC5_baseline_MD'
+    name_file = 'MIROC5_baseline_MD'
     print(name_file)
     directory = 'GCM_data//bias_correction//gcm'
     dist_list = ['Lognormal', 'GEV', 'Gumbel', 'GenLogistic']
