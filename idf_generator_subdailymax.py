@@ -290,7 +290,7 @@ if __name__ == '__main__':
     name_file = 'MIROC5_baseline_MD'
     print(name_file)
     directory = 'GCM_data//bias_correction//gcm'
-    dist_list = ['Lognormal', 'GEV', 'Gumbel', 'GenLogistic']
+    dist_list = ['Normal', 'Lognormal', 'GEV', 'Gumbel', 'GenLogistic']
     disag_factor = ''
 
     for dist in dist_list:
@@ -310,7 +310,6 @@ if __name__ == '__main__':
         return_period_list = [1.1, 2, 5, 10, 25, 50, 100]  ## Default return_period_list for get_idf_table
          
         get_theoretical_max_precipitations(name_file, 1, MY_DISTRIBUTIONS, return_period_list, dist, directory, disag_factor, plot_graph = True)
-        #get_theoretical_max_precipitations(name_file, 3, MY_DISTRIBUTIONS, return_period_list, dist, disag_factor, plot_graph = True)
         get_theoretical_max_precipitations(name_file, 6, MY_DISTRIBUTIONS, return_period_list, dist, directory, disag_factor, plot_graph = True)
         get_theoretical_max_precipitations(name_file, 8, MY_DISTRIBUTIONS, return_period_list, dist, directory, disag_factor, plot_graph = True)
         get_theoretical_max_precipitations(name_file, 10, MY_DISTRIBUTIONS, return_period_list, dist, directory, disag_factor, plot_graph = True)
