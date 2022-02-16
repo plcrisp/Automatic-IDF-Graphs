@@ -122,11 +122,11 @@ def get_IPE2(RMSE, RMSE_max, MARE, MARE_max, MBE, MBE_max, R, R_max):
 
 def get_list_to_compare(idf_to_compare, return_period, station_name, disag_factor, dist_type, data_type, period):
     if idf_to_compare == 'base':
-        df_intensity_base = pd.read_csv('Results/IDF_tables_calc_correct/Base_IDF_ger_Gumbel_intensityfromIDF_daily.csv')
+        df_intensity_base = pd.read_csv('Results/IDF_tables_calc/Base_IDF_ger_Gumbel_intensityfromIDF_daily.csv')
     elif idf_to_compare == 'average':
-        df_intensity_base = pd.read_csv('Results/IDF_tables_calc_correct/Average_ger_GenLogistic_intensityfromIDF_daily.csv')
+        df_intensity_base = pd.read_csv('Results/IDF_tables_calc/Average_ger_GenLogistic_intensityfromIDF_daily.csv')
     elif idf_to_compare == 'inmet_aut_nan':
-        df_intensity_base = pd.read_csv('Results/IDF_tables_calc_correct/INMET_aut_nan_GenLogistic_intensityfromIDF_subdaily.csv')        
+        df_intensity_base = pd.read_csv('Results/IDF_tables_calc/INMET_aut_nan_GenLogistic_intensityfromIDF_subdaily.csv')        
     else:
         print('IDF to compare not defined..')
 
