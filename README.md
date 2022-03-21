@@ -1,5 +1,8 @@
 # IDF_future_TOCO
 
+in Graphs you will find:
+- The function to generate the error graph
+
 in EQM_downscaling you will find:
 - The functions to format the PROJETA data (the csv files containing the projected historical and future data, downloaded directly from the PROJETA website).
 - The functions to perform the EQM downscaling method.
