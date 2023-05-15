@@ -1184,8 +1184,13 @@ if __name__ == '__main__':
 #     aggregate_to_csv(INMET, 'INMET_bl', directory='bartlet_lewis')
 #     aggregate_hourly_to_csv(INMET, 'INMET_bl', directory='bartlet_lewis')
 
-    INMET_conv = pd.read_csv('bartlet_lewis/INMETconv_disag.csv')
-    aggregate_to_csv(INMET_conv, 'INMET_conv_bl', directory='bartlet_lewis')
-    aggregate_hourly_to_csv(INMET_conv, 'INMET_conv_bl', directory='bartlet_lewis')
+    INMET_conv = pd.read_csv('bartlet_lewis/INMETconv_disag.csv') #mudar o nome do caminho do arquivo de entrada
+    df_novo_para_salvar = aggregate_subdaily(INMET_conv, 2) #se a planilha ja estiver agregada para horas. ja considerando dados a cada hora.
+    df_novo_para_salvar = aggregate_subdaily_minutes(INMET_conv, 5, 5) #se a planilha estiver com os dados em minutos. dt_min eh o intervalo de minutos dos dados observados.
+    df_novo_para_salvar.to_csv('GCM_data/bias_correction/test_params_sp/comparison_min.csv') #mudar o nome do caminho para onde vc quer que salva
+
+    
+    #aggregate_to_csv(INMET_conv, 'INMET_conv_bl', directory='bartlet_lewis')
+    #aggregate_hourly_to_csv(INMET_conv, 'INMET_conv_bl', directory='bartlet_lewis')
         
     print('Done!')  
