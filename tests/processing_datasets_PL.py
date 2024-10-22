@@ -1,5 +1,6 @@
 import pandas as pd
 import os
+from datetime import date
 
 VALID_SOURCES = ['CEMADEN', 'INMET', 'INMET_DAILY', 'MAPLU', 'MAPLU_USP']
 
@@ -195,6 +196,8 @@ def aggregate(df, vars):
     """
     return df.groupby(vars).Precipitation.sum().reset_index()
 
+
+
 # Função para salvar os arquivos CSV
 def save_to_csv(df, name, var, directory):
     """
@@ -212,6 +215,9 @@ def save_to_csv(df, name, var, directory):
     # Define o caminho completo e salva o arquivo CSV
     file_path = os.path.join(directory, f'{name}_{var}.csv')
     df.to_csv(file_path, index=False)
+
+
+
 
 # Função agregada e mais flexível para salvar diferentes agregações
 def aggregate_to_csv(df, name, directory='Results/tests'):
@@ -239,6 +245,9 @@ def aggregate_to_csv(df, name, directory='Results/tests'):
     # Salva o DataFrame original completo (não agregado)
     save_to_csv(df, name, 'min', directory)
 
+
+
+
 # Função para ler CSV
 def read_csv(name, var, directory='Results/tests'):
     """
@@ -255,31 +264,80 @@ def read_csv(name, var, directory='Results/tests'):
     file_path = os.path.join(directory, f'{name}_{var}.csv')
     return pd.read_csv(file_path)
 
+
+
+
+def verification(df):
+    """
+    Verifica a integridade de uma série temporal de dados meteorológicos.
+
+    Parâmetros:
+        df (DataFrame): Um DataFrame contendo colunas 'Year', 'Month', 'Day'.
+
+    A função calcula o número total de dias entre a primeira e a última data
+    e compara esse valor com o número de entradas no DataFrame. Se houver dias
+    faltando, uma mensagem de erro é exibida. Caso contrário, confirma que a
+    série está completa.
+    """
+    if df.empty:
+        print("Fail - DataFrame is empty.")
+        return
+    
+    # Verifica se as colunas 'Month' e 'Day' estão presentes
+    if 'Month' not in df.columns or 'Day' not in df.columns:
+        print("Fail - 'Month' and 'Day' columns are required for verification.")
+        return
+
+    # Acessa os valores de data usando iloc
+    year_0, month_0, day_0 = df['Year'].iloc[0], df['Month'].iloc[0], df['Day'].iloc[0]
+    year_i, month_i, day_i = df['Year'].iloc[-1], df['Month'].iloc[-1], df['Day'].iloc[-1]
+    
+    print(year_0,year_i)
+    print(month_0,month_i)
+    print(day_0,day_i)
+
+    d0, di = date(year_0, month_0, day_0), date(year_i, month_i, day_i)
+    ndays_verification = (di - d0).days
+    print(ndays_verification)
+    ndays_real = len(df)
+    print(len(df))
+    
+    verif_number = ndays_verification - ndays_real
+    if verif_number > 0:
+        print(f'Fail - series incomplete / number of days missing = {verif_number}')
+    elif verif_number == 0:
+        print('Series complete')
+    else:
+        print('nao')
+
     
     
 # Teste a função
 jd_sp, cidade_jardim, agua_vermelha = process_data('CEMADEN')
 INMET_aut_df, INMET_conv_df = process_data('INMET')
-INMET_DAILY_aut_df, INMET_DAILY_conv_df = process_data('INMET_DAILY')
+#INMET_DAILY_aut_df, INMET_DAILY_conv_df = process_data('INMET_DAILY')
 MAPLU_esc_df, MAPLU_post_df = process_data('MAPLU', year_start=2015, year_end=2018)
 
 
 # Exibir os primeiros resultados de cada DataFrame
-"""
+
 print("Jardim São Paulo:\n", jd_sp.head(), "\n")
 print("Cidade Jardim:\n", cidade_jardim.head(), "\n")
 print("Água Vermelha:\n", agua_vermelha.head(), "\n")
 print("Inmet Aut:\n", INMET_aut_df.head(), "\n")
 print("Inmet conv:\n", INMET_conv_df.head(), "\n")
-print("Inmet Daily Aut:\n", INMET_DAILY_aut_df.head(), "\n")
-print("Inmet Daily conv:\n", INMET_DAILY_conv_df.head(), "\n")
+#print("Inmet Daily Aut:\n", INMET_DAILY_aut_df.head(), "\n")
+#print("Inmet Daily conv:\n", INMET_DAILY_conv_df.head(), "\n")
 print("MAPLU Escola:\n", MAPLU_esc_df.head(), "\n")
 print("MAPLU Posto Saude:\n", MAPLU_post_df.head(), "\n")
-"""
+
 
 # Supondo que 'df' seja o DataFrame carregado e processado
-aggregate_to_csv(INMET_aut_df, 'dados_precipitacao')
+aggregate_to_csv(jd_sp, 'dados_precipitacao')
 
 # Para ler um arquivo CSV específico
 df_yearly = read_csv('dados_precipitacao', 'yearly')
 df_monthly = read_csv('dados_precipitacao', 'monthly')
+df_daily = read_csv('dados_precipitacao', 'daily')
+
+verification(df_daily)
