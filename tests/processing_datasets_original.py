@@ -104,7 +104,7 @@ def process_MAPLU():
             MAPLU_esc_df['Site'] = MAPLU_esc_df['Site'].str.replace('escola{n}'.format(n = i), 'Escola Sao Bento')
             
         else:
-            df = pd.read_csv('MAPLU/escola{n}.csv'.format(n = i))
+            df = pd.read_csv('datasets/MAPLU/escola{n}.csv'.format(n = i))
             MAPLU_esc_df = pd.concat([MAPLU_esc_df, df], ignore_index=True, sort=False)
             MAPLU_esc_df['Site'] = MAPLU_esc_df['Site'].str.replace('escola{n}'.format(n = i), 'Escola Sao Bento')
             #print(MAPLU_esc_df)
@@ -125,13 +125,13 @@ def process_MAPLU():
     
     for i in range(2015, 2019):
         if i == 2015:
-            MAPLU_post_df = pd.read_csv('MAPLU/postosaude{n}.csv'.format(n = i))
+            MAPLU_post_df = pd.read_csv('datasets/MAPLU/postosaude{n}.csv'.format(n = i))
             #print(MAPLU_post_df)
             #input()
             MAPLU_post_df['Site'] = MAPLU_post_df['Site'].str.replace('postosaude{n}'.format(n = i), 'Posto Santa Felicia')
             
         else:
-            df = pd.read_csv('MAPLU/postosaude{n}.csv'.format(n = i))
+            df = pd.read_csv('datasets/MAPLU/postosaude{n}.csv'.format(n = i))
             MAPLU_post_df = pd.concat([MAPLU_post_df, df], ignore_index=True, sort=False)
             MAPLU_post_df['Site'] = MAPLU_post_df['Site'].str.replace('postosaude{n}'.format(n = i), 'Posto Santa Felicia')
             #print(MAPLU_post_df)
@@ -179,7 +179,7 @@ def aggregate(df, var):
     
     return df_new
 
-def aggregate_to_csv(df, name, directory = 'Results/original'):
+def aggregate_to_csv(df, name, directory = 'Results/tests'):
     df_yearly = aggregate(df, 'Year')
     df_yearly.to_csv('{d}/{n}_yearly.csv'.format(n = name, d = directory), index = False)
     df_monthly = aggregate(df, 'Month')
@@ -188,25 +188,186 @@ def aggregate_to_csv(df, name, directory = 'Results/original'):
     df_daily.to_csv('{d}/{n}_daily.csv'.format(n = name, d = directory), index = False)
     df.to_csv('{d}/{n}_hourly.csv'.format(n = name, d = directory), index = False)
 
-def aggregate_hourly_to_csv(df, name, directory = 'Results/original'):
+def aggregate_hourly_to_csv(df, name, directory = 'Results/tests'):
     df_hourly = aggregate(df, 'Hour')
     df_hourly.to_csv('{d}/{n}_hourly.csv'.format(n = name, d = directory), index = False)
     df.to_csv('{d}/{n}_min.csv'.format(n = name, d = directory), index = False)
     
 def read_csv(name, var):
-    df = pd.read_csv('Results/original/{n}_{v}.csv'.format(n = name, v = var))
+    df = pd.read_csv('Results/tests/{n}_{v}.csv'.format(n = name, v = var))
     
     return df
 
+def verification(name):
+    df = name
+    year_0 = df['Year'][0]
+    year_i = df['Year'][len(df)-1]
+    month_0 = df['Month'][0]
+    month_i = df['Month'][len(df)-1]
+    day_0 = df['Day'][0]
+    day_i = df['Day'][len(df)-1]
+    
+    d0 = date(year_0, month_0, day_0)
+    di = date(year_i, month_i, day_i)
+    #print(d0)
+    delta = di - d0
+    ndays_verification = delta.days
+    #print(ndays_verification)
+    ndays_real = len(df)
+    #ndays_real2 = df['Precipitation'].isnull().sum()
+    #print(ndays_real)
+    
+    verif_number = ndays_verification - ndays_real
+    if verif_number > 0:
+        print('Fail - series incomplete / number of days missing = {d}'.format(d = verif_number))
+    else:
+        print('Series complete')
+        
+def set_date(name):
+    df = name
+    
+    date_list = []
+    for i in range(0, len(df)):
+        year_i = df['Year'][i]
+        #print(year_i)
+        month_i = df['Month'][i]
+        #print(month_i)
+        day_i = df['Day'][i]
+        #print(day_i)           
+        try:
+            di = date(year_i, month_i, day_i)
+        except:
+            #print('ALERT!!!')
+            #raise Exception
+            pass
+                    
+        #print(di)
+        date_list.append(di)
+         
+    #print(date_list)
+    #input()
+    df['Date'] = date_list
+    #print(df)
+    df = df.set_index('Date')
+    df['Date'] = date_list
+    #print(df)
+     
+    return df
+
+def complete_date_series(name, var):
+    df_original = read_csv('{n}'.format(n = name), '{v}'.format(v = var))
+    df = set_date(df_original)
+    #print(df)
+    
+    d0 = df['Date'][0]
+    di = df['Date'][len(df)-1]
+    #print(d0, di)
+    idx = pd.date_range(d0, di)
+    
+    df.index = pd.DatetimeIndex(df.index)
+    df = df.reindex(idx)
+    df['Date'] = df.index
+    return df
+
+def left_join_precipitation(left_df, right_df1, right_df2):
+    left_df2 = left_df.merge(right_df1, on = 'Date', how = 'inner')
+    #print(left_df2)
+    left_df_final = left_df2.merge(right_df2, on = 'Date', how = 'inner')
+    #print(left_df_final)
+    df = left_df_final[['Date', 'Precipitation_x', 'Precipitation_y', 'Precipitation']]
+    df.columns = ['Date', 'P_left', 'P_right1', 'P_right2']
+    #print(df)
+    return df
+
+
+def correlation_plots(left_df, right_df1, right_df2):
+    df = left_join_precipitation(left_df, right_df1, right_df2)
+    df = df[['P_left', 'P_right1', 'P_right2']]
+    sns.pairplot(df)
+    plt.show()
+    corr_pearson = df.corr(method = 'pearson')
+    pvalues_pearson = df.corr(method = pearsonr_pval)
+    print('')
+    print('----- Pearson correlation -----')
+    print('Correlation coefficient matrix')
+    print(corr_pearson)
+    print('')
+    print('P-values matrix')
+    print(pvalues_pearson)
+
+def correlation_plots_2(df):
+    sns.pairplot(df)
+    plt.show()
+    corr_pearson = df.corr(method = 'pearson')
+    pvalues_pearson = df.corr(method = pearsonr_pval)
+    print('')
+    print('----- Pearson correlation -----')
+    print('Correlation coefficient matrix')
+    print(corr_pearson)
+    print('')
+    print('P-values matrix')
+    print(pvalues_pearson)
+    
+    return corr_pearson, pvalues_pearson
+
+def pearsonr_pval(x,y):
+    return pearsonr(x,y)[1]    
+
+def simple_linear_regression(left_df, right_df1, right_df2):
+    df = left_join_precipitation(left_df, right_df1, right_df2)
+    df = df[['P_left', 'P_right1', 'P_right2']]
+    df = df.dropna()
+    X1 = df[['P_right1']]
+    X2 = df[['P_right2']]
+    y = df['P_left']
+
+    
+    lr = LinearRegression()
+    lr.fit(X1, y)
+    
+    yhat = lr.predict(X1)
+    
+    slr_slope = lr.coef_
+    slr_intercept = lr.intercept_
+    print('R-Squared_1 :', lr.score(X1, y))
+    
+    sns.scatterplot(x = 'P_right1', y = 'P_left', data = df, s = 150, alpha = 0.3, edgecolor = 'white')
+    plt.plot(df['P_right1'], slr_slope*df['P_right1'] + slr_intercept, color = 'r', linewidth = 3)
+    plt.ylabel('P_left', fontsize = 12)
+    plt.xlabel('P_right1', fontsize = 12)    
+    plt.show()
+    
+    lr.fit(X2, y)
+    
+    yhat = lr.predict(X1)
+    
+    slr_slope = lr.coef_
+    slr_intercept = lr.intercept_
+    print('R-Squared_2 :', lr.score(X1, y))
+    
+    sns.scatterplot(x = 'P_right1', y = 'P_left', data = df, s = 150, alpha = 0.3, edgecolor = 'white')
+    plt.plot(df['P_right1'], slr_slope*df['P_right1'] + slr_intercept, color = 'r', linewidth = 3)
+    plt.ylabel('P_left', fontsize = 12)
+    plt.xlabel('P_right1', fontsize = 12)    
+    plt.show()
 
 jd_sp, cidade_jardim, agua_vermelha = process_CEMADEN()
 
-print("Jardim São Paulo:\n", jd_sp.head())
-print("Cidade Jardim:\n", cidade_jardim.head())
-print("Água Vermelha:\n", agua_vermelha.head())
-
-aggregate_to_csv(jd_sp, 'dados_precipitacao')
+aggregate_to_csv(jd_sp, 'dados_precipitacao_jd')
+aggregate_to_csv(cidade_jardim, 'dados_precipitacao_cj')
+aggregate_to_csv(agua_vermelha, 'dados_precipitacao_av')
 
 # Para ler um arquivo CSV específico
-df_yearly = read_csv('dados_precipitacao', 'yearly')
-df_monthly = read_csv('dados_precipitacao', 'monthly')
+df_jd = read_csv('dados_precipitacao_jd', 'daily')
+df_cj = read_csv('dados_precipitacao_cj', 'daily')
+df_av = read_csv('dados_precipitacao_av', 'daily')
+
+df_jd = complete_date_series('dados_precipitacao_jd', 'daily')
+df_cj = complete_date_series('dados_precipitacao_cj', 'daily')
+df_av = complete_date_series('dados_precipitacao_av', 'daily')
+
+#print("Jardim São Paulo:\n", df_jd.head(), "\n")
+#print("Cidade Jardim:\n", df_cj.head(), "\n")
+#print("Água Vermelha:\n", df_av.head(), "\n")
+
+simple_linear_regression(df_jd,df_cj,df_av)
