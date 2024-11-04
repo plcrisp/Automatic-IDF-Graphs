@@ -350,24 +350,38 @@ def simple_linear_regression(left_df, right_df1, right_df2):
     plt.ylabel('P_left', fontsize = 12)
     plt.xlabel('P_right1', fontsize = 12)    
     plt.show()
+    
+def distribution_plot(name, var):
+    df = read_csv('{n}'.format(n = name), '{v}'.format(v = var))
+    df = df.dropna()
+    sns.distplot(df['Precipitation'], color = 'skyblue')
+    plt.title('{n} - {v}'.format(n = name, v = var))
+    plt.show()
 
 jd_sp, cidade_jardim, agua_vermelha = process_CEMADEN()
 
-aggregate_to_csv(jd_sp, 'dados_precipitacao_jd')
-aggregate_to_csv(cidade_jardim, 'dados_precipitacao_cj')
-aggregate_to_csv(agua_vermelha, 'dados_precipitacao_av')
+INMET_aut_df, inmet_conv = process_INMET()
+
+MAPLU_esc_df, MAPLU_post_df = process_MAPLU()
+
+aggregate_to_csv(INMET_aut_df, 'inmet')
+aggregate_to_csv(jd_sp, 'jardim')
+
+aggregate_to_csv(MAPLU_esc_df, 'maplu')
+
+distribution_plot('inmet','daily')
 
 # Para ler um arquivo CSV específico
-df_jd = read_csv('dados_precipitacao_jd', 'daily')
-df_cj = read_csv('dados_precipitacao_cj', 'daily')
-df_av = read_csv('dados_precipitacao_av', 'daily')
+#df_jd = read_csv('dados_precipitacao_jd', 'daily')
+#df_cj = read_csv('dados_precipitacao_cj', 'daily')
+#df_av = read_csv('dados_precipitacao_av', 'daily')
 
-df_jd = complete_date_series('dados_precipitacao_jd', 'daily')
-df_cj = complete_date_series('dados_precipitacao_cj', 'daily')
-df_av = complete_date_series('dados_precipitacao_av', 'daily')
+#df_jd = complete_date_series('dados_precipitacao_jd', 'daily')
+#df_cj = complete_date_series('dados_precipitacao_cj', 'daily')
+#df_av = complete_date_series('dados_precipitacao_av', 'daily')
 
 #print("Jardim São Paulo:\n", df_jd.head(), "\n")
 #print("Cidade Jardim:\n", df_cj.head(), "\n")
 #print("Água Vermelha:\n", df_av.head(), "\n")
 
-simple_linear_regression(df_jd,df_cj,df_av)
+#simple_linear_regression(df_jd,df_cj,df_av)

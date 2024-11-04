@@ -132,6 +132,7 @@ def process_data(source: DataSource, data_path, year_start=None, year_end=None):
         def process_maplu_data(file_path, site_name):
             """Processa dados específicos do MAPLU."""
             df = pd.read_csv(file_path)
+            df.columns = ['Site', 'Date', 'Precipitation']
             df['Site'] = site_name
             df[['Year', 'Month', 'Day_hour']] = df.Date.str.split("-", expand=True)
             df[['Day', 'Hour_min']] = df.Day_hour.str.split(" ", expand=True)
@@ -240,7 +241,7 @@ def read_csv(name, var, directory='Results/tests'):
     
     Parâmetros:
     name (str): Nome base do arquivo.
-    var (str): Variável de agregação (ex: 'yearly', 'monthly').
+    var (str): Variável de agregação (ex: 'yearly', 'monthly', 'daily', 'hourly', 'min').
     directory (str): Diretório onde os arquivos estão salvos.
     
     Retorna:
@@ -515,7 +516,7 @@ def trend_analysis(data, alpha_value, plot_graphs=True, site=''):
         plt.figure(figsize=(6, 4))
         plt.plot(data, label='Data')
         plt.plot(data.index, trend_line, label='Trend Line', color='red')
-        plt.xlabel('Years')
+        plt.xlabel('Months')
         plt.ylabel('Precipitation (mm)')
         plt.title(f'Trend Analysis for {site}')
         plt.legend()
@@ -638,7 +639,144 @@ def get_trend(var, sites_list, alpha_value, group, data_type='obs', plot_graphs=
     
     # Salva o DataFrame em um arquivo CSV
     df_trend_result.to_csv(output_path, index=False, encoding='latin1')
+    
+    
+    
+def calculate_p90(data):
+    """
+    Calcula o percentil de 90% (P90) para valores de precipitação, ou seja, o valor que é excedido em apenas 10% das observações.
+    Também plota o gráfico da probabilidade acumulada de não excedência em função da precipitação.
 
+    Parâmetros:
+    data (pd.DataFrame): DataFrame com uma coluna 'Precipitation' contendo valores de precipitação.
+
+    Retorna:
+    float: O valor de precipitação correspondente ao percentil de 90% (P90).
+    """
+    
+    # Filtra e ordena os valores de precipitação, excluindo zeros
+    df = data[['Precipitation']].query('Precipitation != 0').sort_values('Precipitation').reset_index(drop=True)
+
+    # Calcula a probabilidade de não excedência para cada valor em porcentagem
+    df['Probability'] = (df.index + 1) / len(df) * 100
+    
+    # Filtra o valor de precipitação onde a probabilidade de não excedência é aproximadamente 90%
+    p90_value = df.loc[df['Probability'] >= 90, 'Precipitation'].iloc[0]
+
+    # Plota o gráfico da probabilidade acumulada de não excedência
+    sns.lineplot(x='Probability', y='Precipitation', data=df, color='black')
+    plt.ylabel('Precipitation (mm)', fontsize=12)
+    plt.xlabel('Probability (%)', fontsize=12)
+    plt.title("Probability of Non-Exceedence")
+    plt.show()
+    
+    return p90_value
+
+
+
+def distribution_plot(name, var):
+    """
+    Gera um gráfico de densidade dos dados de precipitação 
+    contidos em um arquivo CSV.
+
+    Parâmetros:
+    name (str): Nome do arquivo CSV.
+    var (str): Nome da coluna de precipitação a ser exibida no título do gráfico.
+
+    Retorna:
+    None: Exibe o gráfico de densidade.
+    """
+    
+    # Lê o arquivo CSV e carrega a coluna especificada
+    df = read_csv(name, var)
+    
+    # Remove valores ausentes
+    df = df.dropna()
+    
+    # Gera o gráfico de densidade
+    sns.kdeplot(df['Precipitation'], color='skyblue', fill=True)
+    
+    plt.title(f'{name} - {var}')
+    plt.xlabel('Precipitation (mm)')
+    plt.ylabel('Density')
+    plt.show()
+    
+    
+
+def distribution_plot_df(df):
+    """
+    Gera um gráfico de densidade dos dados de precipitação 
+    a partir de um DataFrame.
+
+    Parâmetros:
+    df (DataFrame): Um DataFrame contendo uma coluna 'Precipitation' 
+                    com os dados de precipitação.
+
+    Retorna:
+    None: Exibe o gráfico de densidade.
+    """
+    
+    # Remove valores ausentes da coluna 'Precipitation'
+    df = df.dropna(subset=['Precipitation'])
+    
+    # Gera o gráfico de densidade
+    sns.kdeplot(df['Precipitation'], color='skyblue', fill=True)
+    
+    # Configurações do gráfico
+    plt.title('Distribuição de Precipitação')
+    plt.xlabel('Precipitação (mm)')
+    plt.ylabel('Densidade')
+    
+    # Exibe o gráfico
+    plt.show()
+    
+    
+    
+def aggregate_precipitation(df, interval, dt_min=None):
+    """
+    Agrega os dados de precipitação em intervalos especificados.
+
+    Parâmetros:
+    df (DataFrame): Um DataFrame contendo uma coluna 'Precipitation' 
+                    com os dados de precipitação, indexados por tempo.
+    interval (int): O intervalo de agregação desejado:
+                    - Se `dt_min` for None, considera 'interval' em horas.
+                    - Se `dt_min` for um valor conhecido, considera 'interval' em minutos.
+    dt_min (int, opcional): A resolução temporal dos dados em minutos. 
+                            Necessário se 'interval' for em minutos.
+
+    Retorna:
+    list: Uma lista contendo as somas de precipitação para cada intervalo 
+          especificado.
+    """
+    
+    # Verifica se o DataFrame contém a coluna 'Precipitation'
+    if 'Precipitation' not in df.columns:
+        raise ValueError("O DataFrame deve conter uma coluna 'Precipitation'.")
+    
+    # Remove valores ausentes da coluna 'Precipitation'
+    df = df[['Precipitation']].dropna()
+    
+    # Lista para armazenar os resultados acumulados
+    acum_list = []
+
+    if dt_min is None:
+        # Caso padrão: agregação em horas
+        n = interval  # Intervalo em horas
+        for i in range(len(df) - n + 1):
+            # Soma os valores de 'Precipitation' nas 'n' horas atuais
+            acum = df.iloc[i:n + i]['Precipitation'].sum()
+            acum_list.append(acum)
+    
+    else:
+        # Caso em que o intervalo é em minutos
+        n = interval // dt_min  # Calcula quantas entradas de dados devem ser somadas
+        for i in range(len(df) - n + 1):
+            # Soma os valores de 'Precipitation' nas 'n' entradas atuais
+            acum = df.iloc[i:n + i]['Precipitation'].sum()
+            acum_list.append(acum)
+
+    return acum_list
 
 
 
@@ -647,10 +785,10 @@ def get_trend(var, sites_list, alpha_value, group, data_type='obs', plot_graphs=
     
     
 # Teste a função
-jd_sp, cidade_jardim, agua_vermelha = process_data(DataSource.CEMADEN,'datasets')
+#jd_sp, cidade_jardim, agua_vermelha = process_data(DataSource.CEMADEN,'datasets')
 INMET_aut_df, INMET_conv_df = process_data(DataSource.INMET,'datasets')
 #INMET_DAILY_aut_df, INMET_DAILY_conv_df = process_data('INMET_DAILY')
-#MAPLU_esc_df, MAPLU_post_df = process_data('MAPLU', year_start=2015, year_end=2018)
+MAPLU_esc_df, MAPLU_post_df = process_data(DataSource.MAPLU, 'datasets', year_start=2015, year_end=2017)
 
 
 # Exibir os primeiros resultados de cada DataFrame
@@ -668,14 +806,35 @@ INMET_aut_df, INMET_conv_df = process_data(DataSource.INMET,'datasets')
 
 # Supondo que 'df' seja o DataFrame carregado e processado
 aggregate_to_csv(INMET_aut_df, 'inmet')
-aggregate_to_csv(jd_sp, 'jardim')
+aggregate_to_csv(MAPLU_esc_df, 'maplu')
+#aggregate_to_csv(jd_sp, 'jardim')
 
 
 # Para ler um arquivo CSV específico
-#df_inmet = read_csv('dados_precipitacao_inmet_aut', 'daily')
+#df_inmet = read_csv('inmet', 'hourly')
+df_maplu = read_csv('maplu', 'min')
+
+#print(df_inmet[:64]) 
+
+#df_inmet_3hour = aggregate_precipitation(df_inmet,60)
+
+#print(df_inmet_3hour[:64]) 
+
+#print(df_maplu[1590:1651]) 
+
+#df_maplu_10min = aggregate_precipitation(df_maplu,10,1)
+
+#print(df_maplu_10min[1590:1651])
+
+#calculate_p90(df_inmet)
+
+#distribution_plot('inmet','yearly')
+#distribution_plot_df(df_inmet)
+#distribution_plot('inmet','monthly')
+#distribution_plot('inmet','daily')
 
 
-#df_inmet = complete_date_series('dados_precipitacao_inmet_aut', 'daily')
+#df_inmet = complete_date_series('inmet', 'monthly')
 
 
 #print("Jardim São Paulo:\n", df_jd.head(), "\n")
@@ -686,7 +845,7 @@ aggregate_to_csv(jd_sp, 'jardim')
 #print(df_inmet.tail())
 
 
-#trend_analysis(df_inmet,0.01,site='INMET AUT')
+#trend_analysis(df_inmet,0.05,site='INMET AUT')
 
 sites = ['inmet', 'jardim']
 
@@ -703,7 +862,7 @@ group_name = 'Group_A'
 data_type = 'obs'
 
 # Chamada da função
-get_trend(var=var, sites_list=sites, alpha_value=alpha, group=group_name, data_type=data_type, plot_graphs=True)
+#get_trend(var=var, sites_list=sites, alpha_value=alpha, group=group_name, data_type=data_type, plot_graphs=True)
 
 
 
