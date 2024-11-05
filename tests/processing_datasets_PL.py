@@ -62,7 +62,7 @@ def process_data(source: DataSource, data_path, year_start=None, year_end=None):
     """
 
     if source == DataSource.CEMADEN:
-        print("Processando dados do CEMADEN...")
+        print("Processando dados do DataSource.CEMADEN...")
 
         # Lê e concatena os arquivos CSV em um único DataFrame
         CEMADEN_df = pd.concat(
@@ -127,7 +127,7 @@ def process_data(source: DataSource, data_path, year_start=None, year_end=None):
         return aut_df, conv_df
 
     elif source == DataSource.MAPLU:
-        print("Processando dados do MAPLU...")
+        print("Processando dados do DataSource.MAPLU...")
 
         def process_maplu_data(file_path, site_name):
             """Processa dados específicos do MAPLU."""
@@ -153,7 +153,7 @@ def process_data(source: DataSource, data_path, year_start=None, year_end=None):
         return esc_df, posto_df
 
     elif source == DataSource.MAPLU_USP:
-        print("Processando dados do MAPLU_USP...")
+        print("Processando dados do DataSource.MAPLU_USP...")
 
         # Lê e processa os dados da USP
         usp_df = pd.read_csv(f'{data_path}/MAPLU/USP2.csv')
@@ -780,15 +780,661 @@ def aggregate_precipitation(df, interval, dt_min=None):
 
 
 
+def get_subdaily_max(df, hours):
+    """
+    Calcula o valor máximo de precipitação acumulada em intervalos subdiários 
+    para cada ano presente em um DataFrame.
+
+    Parâmetros:
+    df (DataFrame): Um DataFrame que deve conter, pelo menos, uma coluna 'Year' 
+                    e dados de precipitação em uma coluna separada.
+    hours (int): O intervalo de horas para a agregação da precipitação.
+
+    Retorna:
+    DataFrame: Um DataFrame contendo os anos e os respectivos máximos de 
+               precipitação acumulada em intervalos de 'hours'.
+    """
+    
+    # Obtém a lista de anos únicos do DataFrame
+    years_list = df['Year'].unique()
+    
+    # Inicializa a lista para armazenar os máximos subdiários
+    max_subdaily_list = []
+    
+    # Itera sobre cada ano e calcula o máximo de precipitação acumulada
+    for year in years_list:
+        # Filtra os dados para o ano atual
+        df_new = df[df['Year'] == year]
+        
+        # Agrega a precipitação em intervalos subdiários e armazena o máximo
+        max_subdaily = max(aggregate_precipitation(df_new, hours))
+        
+        # Adiciona o máximo encontrado à lista
+        max_subdaily_list.append(max_subdaily)
+    
+    # Cria um DataFrame resultante com os anos e os máximos correspondentes
+    df_result = pd.DataFrame({
+        'Year': years_list,
+        f'Max_{hours}h': max_subdaily_list  # Usando f-string para formatação
+    })
+    
+    return df_result
+
+
+
+def get_subdaily_extremes(df, interval, dt_min=None):
+    """
+    Calcula os valores máximos e mínimos de precipitação acumulada em intervalos 
+    especificados para cada ano presente em um DataFrame.
+
+    Parâmetros:
+    df (DataFrame): Um DataFrame que deve conter, pelo menos, uma coluna 'Year' 
+                    e dados de precipitação em uma coluna separada.
+    interval (int): O intervalo de agregação desejado:
+                    - Se 'dt_min' for None, considera 'interval' em horas (para máximos).
+                    - Se 'dt_min' for um valor conhecido, considera 'interval' em minutos (para máximos e mínimos).
+    dt_min (int, opcional): A resolução temporal dos dados em minutos. 
+                            Necessário se 'interval' for em minutos.
+
+    Retorna:
+    DataFrame: Um DataFrame contendo os anos, os máximos e mínimos de 
+               precipitação acumulada.
+    """
+    
+    # Obtém a lista de anos únicos do DataFrame
+    years_list = df['Year'].unique()
+    
+    # Inicializa listas para armazenar os máximos e mínimos subdiários
+    max_subdaily_list = []
+    min_subdaily_list = []
+
+    # Itera sobre cada ano para calcular os extremos de precipitação acumulada
+    for year in years_list:
+        # Filtra os dados para o ano atual
+        df_new = df[df['Year'] == year]
+        
+        # Agrega a precipitação em intervalos subdiários
+        if dt_min is None:
+            subdaily_list = aggregate_precipitation(df_new, interval)
+        else:
+            subdaily_list = aggregate_precipitation(df_new, interval, dt_min)
+
+        # Adiciona o máximo e mínimo encontrados às respectivas listas
+        max_subdaily_list.append(max(subdaily_list))
+        min_subdaily_list.append(min(subdaily_list))
+
+    # Cria um DataFrame resultante com os anos e os extremos correspondentes
+    df_result = pd.DataFrame({
+        'Year': years_list,
+        f'Max_{interval}{"h" if dt_min is None else "min"}': max_subdaily_list,  # Máximos
+        f'Min_{interval}{"h" if dt_min is None else "min"}': min_subdaily_list   # Mínimos
+    })
+
+    return df_result
+
+
+
+def get_max_subdaily_table(name_file, directory='Results/tests', dt_min=None):
+    """
+    Calcula os máximos de precipitação acumulada em intervalos subdiários 
+    e salva os resultados em um arquivo CSV. O cálculo pode ser realizado 
+    para dados horários ou de minutos, dependendo da presença do parâmetro dt_min.
+
+    Parâmetros:
+    name_file (str): Nome do arquivo sem extensão que contém dados de precipitação.
+    directory (str): Diretório onde os arquivos estão localizados e onde o resultado será salvo.
+    dt_min (int, opcional): A resolução temporal dos dados em minutos. Necessário se os dados forem em minutos.
+
+    Retorna:
+    None: Salva um arquivo CSV contendo os máximos acumulados por intervalo.
+    """
+    print('Getting maximum subdaily...')
+    
+    # Lê o arquivo CSV contendo dados
+    if dt_min is None:
+        df = pd.read_csv(f'{directory}/{name_file}_hourly.csv')
+        # Lista dos intervalos em horas
+        intervals = [1, 3, 6, 8, 10, 12, 24]
+    else:
+        df = pd.read_csv(f'{directory}/{name_file}_min.csv')
+        # Lista dos intervalos em minutos
+        intervals = [5, 10, 15, 20, 25, 30]
+
+    # Cria um DataFrame inicial para armazenar os resultados
+    df_final = pd.DataFrame({'Year': df['Year'].unique()})
+
+    # Calcula e mescla os máximos para cada intervalo
+    for interval in intervals:
+        if dt_min is None:
+            max_subdaily = get_subdaily_max(df, interval)
+            print(f'{interval}h done!')
+        else:
+            max_subdaily = get_subdaily_max(df, interval, dt_min)
+            print(f'{interval}min done!')
+        
+        # Mescla os resultados no DataFrame final
+        df_final = df_final.merge(max_subdaily, on='Year', how='inner')
+
+    # Exibe o DataFrame final
+    print('\n', df_final, '\n')
+
+    # Salva o DataFrame final em um arquivo CSV
+    if dt_min is None:
+        df_final.to_csv(f'{directory}/max_subdaily_{name_file}.csv', index=False)
+    else:
+        df_final.to_csv(f'{directory}/max_subdaily_min_{name_file}.csv', index=False)
+
+    print('Done!')
+    
+    return df_final
+    
+    
+
+def merge_max_tables(name_file, directory='Results/tests'):
+    """
+    Mescla tabelas de máximos de precipitação acumulada em intervalos de minutos e horas 
+    e salva os resultados em um arquivo CSV.
+
+    Parâmetros:
+    name_file (str): Nome do arquivo sem extensão que contém os dados.
+    directory (str): Diretório onde os arquivos estão localizados e onde o resultado será salvo.
+    
+    Retorna:
+    None: Salva um arquivo CSV contendo os máximos acumulados por intervalo em minutos e horas.
+    """
+    # Lê os arquivos CSV que contêm os máximos acumulados
+    df_min = pd.read_csv(f'{directory}/max_subdaily_min_{name_file}.csv')
+    df_hour = pd.read_csv(f'{directory}/max_subdaily_{name_file}.csv')
+    
+    # Mescla os DataFrames com base na coluna 'Year'
+    df_complete = df_min.merge(df_hour, on='Year', how='inner')
+    
+    # Salva o DataFrame resultante em um novo arquivo CSV
+    df_complete.to_csv(f'{directory}/max_subdaily_complete_{name_file}.csv', index=False)
+    
+    print('Merge completo! Arquivo salvo em:', f'{directory}/max_subdaily_complete_{name_file}.csv')
+    
+
+def max_annual_precipitation(df, name_file, output_dir='Results/tests'):
+    """
+    Calcula o valor máximo de precipitação anual para cada ano e remove os outliers com base no método de intervalo interquartílico (IQR).
+    Em seguida, salva o resultado em um arquivo CSV no diretório especificado.
+
+    Parâmetros:
+    - df (DataFrame): DataFrame com uma coluna 'Year' para os anos e uma coluna 'Precipitation' com os valores de precipitação.
+    - output_dir (str): Diretório onde o arquivo CSV será salvo. Padrão é 'Results'.
+    - output_file (str): Nome do arquivo CSV para salvar o resultado. Padrão é 'max_annual_precipitation_no_outliers.csv'.
+
+    Retorna:
+    - DataFrame com os valores máximos de precipitação anual, excluindo outliers.
+    """
+    # Remover linhas com valores nulos
+    df = df.dropna()
+    
+    # Agrupar por ano e calcular o valor máximo de precipitação anual
+    df_new = df.groupby(['Year'])['Precipitation'].max().reset_index()
+    
+    # Calcular quartis e intervalo interquartílico (IQR) para remoção de outliers
+    q1 = df_new['Precipitation'].quantile(0.25)
+    q3 = df_new['Precipitation'].quantile(0.75)
+    IQR = q3 - q1
+    L0 = IQR * 1.5
+    L_low = q1 - L0
+    L_high = q3 + L0
+    
+    # Filtrar dados para remover outliers
+    df_new = df_new[(df_new['Precipitation'] > L_low) & (df_new['Precipitation'] < L_high)]
+    
+    # Garantir que o diretório de saída exista
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # Caminho completo do arquivo
+    output_path = os.path.join(output_dir, f'max_daily_{name_file}.csv')
+    
+    # Salvar o resultado em um arquivo CSV
+    df_new.to_csv(output_path, index=False)
+    
+    print(f"Arquivo salvo em: {output_path}")
+    return df_new
+
+
+
+def remove_outliers_from_max(df):
+    """
+    Remove outliers da coluna 'Precipitation' de um DataFrame, sem agrupar os dados.
+
+    Args:
+        df (pd.DataFrame): DataFrame com coluna 'Precipitation'.
+
+    Returns:
+        pd.DataFrame: DataFrame filtrado sem outliers na coluna 'Precipitation'.
+    """
+    # Removendo valores nulos
+    df_no_na = df.dropna()
+
+    # Calcula os limites para remoção de outliers usando o IQR
+    q1 = df_no_na['Precipitation'].quantile(0.25)
+    q3 = df_no_na['Precipitation'].quantile(0.75)
+    iqr = q3 - q1
+    lower_bound = q1 - 1.5 * iqr
+    upper_bound = q3 + 1.5 * iqr
+
+    # Filtra os dados para remover os outliers
+    df_filtered = df_no_na[(df_no_na['Precipitation'] > lower_bound) & 
+                           (df_no_na['Precipitation'] < upper_bound)]
+    
+    return df_filtered
+
+ 
+
+def get_disagregation_factors(var_value, filename='fatores_desagregacao.csv'):
+    """
+    Lê os fatores de desagregação de um arquivo CSV e calcula fatores 
+    baseados em um valor de variável fornecido.
+
+    Parâmetros:
+    var_value (float): Valor utilizado para calcular os fatores de desagregação.
+    filename (str): Nome do arquivo CSV contendo os fatores de desagregação (padrão é 'fatores_desagregacao.csv').
+    
+    Retorna:
+    DataFrame: Um DataFrame contendo os fatores de desagregação calculados.
+    """
+    # Lê o arquivo CSV contendo os fatores de desagregação
+    df_disagreg_factors = pd.read_csv(filename)
+    
+    # Calcula os fatores de desagregação
+    df_disagreg_factors['CETESB_p{v}'.format(v=var_value)] = df_disagreg_factors['CETESB_ger'] * (1 + var_value)
+    df_disagreg_factors['CETESB_m{v}'.format(v=var_value)] = df_disagreg_factors['CETESB_ger'] * (1 - var_value)
+    
+    return df_disagreg_factors
+
+
+
+def get_subdaily_from_disagregation_factors(df, type_of_disagregator, var_value, name_file, directory='Results/tests'):
+    """
+    Calcula os valores subdiários de precipitação baseados em fatores de desagregação.
+
+    Parâmetros:
+    df (DataFrame): DataFrame contendo os dados de precipitação.
+    type_of_disagregator (str): Tipo de desagregador ('original', 'plus' ou 'minus').
+    var_value (float): Valor utilizado para os fatores de desagregação.
+    name_file (str): Nome do arquivo sem extensão onde os resultados serão salvos.
+    directory (str): Diretório onde o arquivo será salvo (padrão é 'Results').
+    
+    Retorna:
+    None: Salva um arquivo CSV contendo os valores subdiários calculados.
+    """
+    
+    df_subdaily = df
+    df_disagreg_factors = get_disagregation_factors(var_value)
+    
+    # Define o tipo de desagregação
+    if type_of_disagregator == 'original':
+        type = 'ger'
+    elif type_of_disagregator == 'plus':
+        type = f'p{var_value}'
+    elif type_of_disagregator == 'minus':
+        type = f'm{var_value}'
+    
+    # Lista de intervalos que serão utilizados
+    intervals = [5, 10, 15, 20, 25, 30, 60, 360, 480, 600, 720, 1440]
+    
+    # Verifica se a coluna com o tipo existe em df_disagreg_factors
+    col_name = f'CETESB_{type}'
+    if col_name not in df_disagreg_factors.columns:
+        raise ValueError(f"Coluna {col_name} não encontrada em df_disagreg_factors.")
+    
+    # Aplica os fatores de desagregação aos intervalos correspondentes
+    for i, interval in enumerate(intervals):
+        if i < len(df_disagreg_factors):
+            factor = df_disagreg_factors[col_name].iloc[i]
+            column_name = f'Max_{interval}min' if interval < 60 else f'Max_{interval//60}h'
+            df_subdaily[column_name] = df_subdaily['Precipitation'] * factor
+        else:
+            print(f"Intervalo {interval} não encontrado em fatores de desagregação.")
+    
+    # Salva o resultado no CSV
+    output_path = f'{directory}/max_subdaily_{name_file}_{type}.csv'
+    df_subdaily.to_csv(output_path, index=False)
+    print(f'Resultado salvo em {output_path}')
+
+
+
+def plot_subdaily_maximum_absolute(name_file, variation_percentage=20):
+    """
+    Gera gráficos de barras para os máximos subdiários de precipitação (1h, 6h, 8h, 10h, 12h, 24h)
+    comparando dados observados com referências CETESB (e variações de ±variation_percentage%).
+
+    Parâmetros:
+    name_file (str): Nome base do arquivo (sem extensão), usado para carregar os arquivos de dados e salvar os gráficos.
+    variation_percentage (int): Percentagem para variação positiva e negativa em relação aos dados CETESB. Padrão é 20.
+
+    Etapas:
+    1. Carrega os arquivos de dados e concatena-os em um DataFrame único.
+    2. Gera gráficos de barras para cada intervalo de tempo, comparando os tipos de dados.
+    3. Salva cada gráfico em uma pasta específica para fácil acesso.
+
+    Retorno:
+    Nenhum. Gráficos são salvos em arquivos na pasta 'Graphs/subdaily'.
+    """
+    print('Starting plot of absolute subdaily maximums...\n')
+
+    # Carrega os arquivos de dados e adiciona uma coluna para identificar o tipo de dados
+    file_paths = {
+        'Observed': f'Results/tests/max_subdaily_{name_file}.csv',
+        'CETESB': f'Results/tests/max_subdaily_{name_file}_ger.csv',
+        f'CETESB_-{variation_percentage}%': f'Results/tests/max_subdaily_{name_file}_m{variation_percentage/100:.1f}.csv',
+        f'CETESB_+{variation_percentage}%': f'Results/tests/max_subdaily_{name_file}_p{variation_percentage/100:.1f}.csv'
+    }
+    
+    # Concatena os dados em um único DataFrame com o tipo de dados como coluna
+    data_frames = []
+    for data_type, path in file_paths.items():
+        df = pd.read_csv(path)
+        df['Type'] = data_type
+        data_frames.append(df)
+    
+    # Combina todos os DataFrames em um único DataFrame final
+    df_final = pd.concat(data_frames, ignore_index=True, sort=False)
+    df_final = df_final[['Year', 'Max_1h', 'Max_6h', 'Max_8h', 'Max_10h', 'Max_12h', 'Max_24h', 'Type']]
+
+    # Lista dos intervalos de tempo para gerar gráficos
+    intervals = ['Max_1h', 'Max_6h', 'Max_8h', 'Max_10h', 'Max_12h', 'Max_24h']
+    y_limit = 170  # Limite do eixo Y para todos os gráficos
+
+    # Função auxiliar para gerar e salvar o gráfico de cada intervalo
+    def plot_interval(interval):
+        print(f'Generating plot for {interval}...')
+        
+        # Cria o gráfico de barras para o intervalo especificado
+        g = sns.catplot(
+            x="Year", y=interval, hue='Type', data=df_final, 
+            kind='bar', height=5, aspect=1.5
+        )
+        g.set_axis_labels('', 'Precipitation (mm)')
+        fig = g.figure
+        fig.subplots_adjust(bottom=0.15, top=0.9, left=0.07)
+        plt.xticks(rotation=50)
+        plt.title(f'Subdaily {name_file} - {interval.split("_")[1]}')
+        plt.ylim(0, y_limit)
+        
+        # Salva o gráfico em um arquivo
+        plt.savefig(f'Graphs/subdaily/{name_file}_{interval.lower()}.png')
+        print(f'Graph for {interval} saved!\n')
+
+    # Gera e salva os gráficos para cada intervalo
+    for interval in intervals:
+        plot_interval(interval)
+
+    print('All subdaily maximum plots generated and saved!')
+
+    
+
+
+def plot_subdaily_maximum_relative(name_file, max_hour, var_value):
+    """
+    Gera um gráfico das diferenças relativas entre os valores máximos subdiários observados e as referências CETESB.
+    
+    Parâmetros:
+    name_file (str): Nome base do arquivo (sem extensão), usado para carregar os dados e salvar os gráficos.
+    max_hour (int): Intervalo de tempo em horas para o qual as diferenças serão calculadas.
+    var_value (float): Valor de variação aplicado aos fatores CETESB (por exemplo, 0.2 para 20%).
+    
+    Etapas:
+    1. Carrega os dados de precipitação máxima observada e as referências CETESB (original, +20%, -20%).
+    2. Calcula a diferença entre os dados observados e cada referência para o intervalo especificado.
+    3. Gera um gráfico de barras que mostra essas diferenças ao longo dos anos, destacando o desvio de cada referência.
+    4. Salva o gráfico em um arquivo PNG para análise posterior.
+    
+    Retorno:
+    Nenhum. Gráfico é salvo em 'Graphs/subdaily_variations' com nome baseado nos parâmetros.
+    """
+    
+    print('Starting plotting relative subdaily maximums\n')
+    
+    # Carrega os arquivos de dados e adiciona a coluna de identificação do tipo de dados
+    file_paths = {
+        'Observed': f'Results/tests/max_subdaily_{name_file}.csv',
+        'CETESB': f'Results/tests/max_subdaily_{name_file}_ger.csv',
+        f'CETESB_-{var_value}': f'Results/tests/max_subdaily_{name_file}_m{var_value}.csv',
+        f'CETESB_+{var_value}': f'Results/tests/max_subdaily_{name_file}_p{var_value}.csv'
+    }
+    
+    # Concatena os dados em um único DataFrame com o tipo de dados como coluna
+    data_frames = []
+    for data_type, path in file_paths.items():
+        df = pd.read_csv(path)
+        df['Type'] = data_type
+        data_frames.append(df)
+    
+    # Combina todos os DataFrames em um único DataFrame final
+    df_final = pd.concat(data_frames, ignore_index=True, sort=False)
+    df_final = df_final[['Year', f'Max_{max_hour}h', 'Type']]
+    
+    # Separação dos dados observados e referências para cálculo de diferenças
+    df_observed = df_final[df_final['Type'] == 'Observed'].reset_index()
+    reference_dfs = {
+        'CETESB': df_final[df_final['Type'] == 'CETESB'].reset_index(),
+        f'CETESB_-{var_value}': df_final[df_final['Type'] == f'CETESB_-{var_value}'].reset_index(),
+        f'CETESB_+{var_value}': df_final[df_final['Type'] == f'CETESB_+{var_value}'].reset_index()
+    }
+    
+    # Calcula as diferenças entre os valores observados e cada referência
+    for ref_type, ref_df in reference_dfs.items():
+        ref_df[f'Dif_{max_hour}h'] = df_observed[f'Max_{max_hour}h'] - ref_df[f'Max_{max_hour}h']
+        reference_dfs[ref_type] = ref_df  # Atualiza com a nova coluna de diferença
+    
+    # Soma dos erros de cada referência (somatório das diferenças)
+    for ref_type, ref_df in reference_dfs.items():
+        sum_error = ref_df[f'Dif_{max_hour}h'].sum()
+        print(f'sum_error for {ref_type} / {var_value}: ', sum_error)
+        print('')
+    
+    # Concatena as diferenças em um DataFrame único para geração do gráfico
+    df_graph = pd.concat(reference_dfs.values(), ignore_index=True, sort=False)
+    
+    # Gera o gráfico de diferenças relativas
+    g = sns.catplot(
+        x="Year", y=f'Dif_{max_hour}h', hue='Type', data=df_graph,
+        kind='bar', height=5, aspect=1.5
+    )
+    g.set_axis_labels('', 'Precipitation (mm)')
+    fig = g.figure
+    fig.subplots_adjust(bottom=0.15, top=0.9, left=0.07)
+    plt.xticks(rotation=50)
+    plt.ylim(-100, 50)
+    plt.title(f'Subdaily {name_file} - {max_hour}h - {var_value}')
+    
+    # Salva o gráfico em um arquivo
+    output_path = f'Graphs/subdaily_variations/{name_file}_max{max_hour}_{var_value}_relative.png'
+    plt.savefig(output_path)
+    print(f'Graph for relative Max_{max_hour}h done and saved at {output_path}!\n')
+
+
+
+def plot_subdaily_maximum_BL(max_hour):
+    """
+    Plota comparações de máximas subdiárias de precipitação
+    observadas e ajustadas utilizando o método Bartlett-Lewis (BL) e fatores CETESB.
+
+    Args:
+        max_hour (int): O número de horas para as quais a máxima subdiária é calculada.
+    """
+
+    print('Iniciando o plot das máximas subdiárias relativas BL e observadas\n')
+
+    # Lendo dados de precipitação máxima subdiária
+    data_sources = {
+        'INMET_aut observed': 'Results/max_subdaily_INMET_aut.csv',
+        'INMET_aut CETESB': 'Results/max_subdaily_INMET_aut_ger.csv',
+        'MAPLU_usp observed': 'Results/max_subdaily_MAPLU_usp.csv',
+        'MAPLU_usp CETESB': 'Results/max_subdaily_MAPLU_usp_ger.csv',
+        'INMET_aut BL': 'bartlet_lewis/max_subdaily_INMET_bl.csv',
+        'MAPLU_usp BL': 'bartlet_lewis/max_subdaily_MAPLU_usp_bl.csv'
+    }
+
+    # Criar um DataFrame vazio para armazenar os dados lidos
+    df_list = []
+    
+    for source, file_path in data_sources.items():
+        df = pd.read_csv(file_path)
+        df['Type'] = source  # Adiciona coluna para identificar a origem dos dados
+        df_list.append(df)
+
+    # Concatenar todos os DataFrames em um único DataFrame
+    df_final = pd.concat(df_list, ignore_index=True, sort=False)
+
+    # Selecionar colunas relevantes
+    df_final = df_final[['Year', 'Max_1', 'Max_6', 'Max_8', 'Max_10', 'Max_12', 'Max_24', 'Type']]
+
+    # Gráfico de máximas absolutas
+    g = sns.catplot(x="Year", y=f"Max_{max_hour}", hue='Type', data=df_final, kind='bar', height=5, aspect=1.5)
+    g.set_axis_labels('', 'Precipitação')
+    plt.title(f'Máximas Subdiárias INMET e MAPLU - Teste BL - {max_hour}h')
+    plt.ylim(0, 170)
+    plt.xticks(rotation=50)
+    plt.savefig(f'Graphs/subdaily_bl/BL_max{max_hour}_absolute.png')
+    print(f'Gráfico das máximas absolutas Max_{max_hour}h gerado com sucesso!\n')
+
+    # Processando os DataFrames para calcular diferenças
+    df_processed = {source: df_final[df_final['Type'] == source].reset_index(drop=True) for source in data_sources.keys()}
+
+    # Calculando as diferenças entre máximas observadas e ajustadas
+    for source in ['INMET_aut observed', 'MAPLU_usp observed']:
+        for method in ['CETESB', 'BL']:
+            key = f"{source.split()[0]} {method}"
+            df_processed[key]['Dif_{max_hour}'] = df_processed[source]['Max_{max_hour}'] - df_processed[key]['Max_{max_hour}']
+
+    # Somando os erros
+    error_sums = {source: df_processed[source]['Dif_{max_hour}'].sum() for source in df_processed if 'CETESB' in source or 'BL' in source}
+
+    # Imprimindo os erros acumulados
+    for key, value in error_sums.items():
+        print(f'Soma do erro para {key}: {value}\n')
+
+    # Gráfico de diferenças
+    df_graph = pd.concat([df_processed['INMET_aut CETESB'], df_processed['INMET_aut BL'],
+                          df_processed['MAPLU_usp CETESB'], df_processed['MAPLU_usp BL']], ignore_index=True, sort=False)
+
+    h = sns.catplot(x="Year", y=f"Dif_{max_hour}", hue='Type', data=df_graph, kind='bar', height=5, aspect=1.5)
+    h.set_axis_labels('', 'Precipitação')
+    plt.title(f'Diferenças Subdiárias INMET e MAPLU - Teste BL - {max_hour}h')
+    plt.ylim(-100, 50)
+    plt.xticks(rotation=50)
+    plt.savefig(f'Graphs/subdaily_bl/BL_max{max_hour}_relative.png')
+    print(f'Gráfico das diferenças Max_{max_hour}h gerado com sucesso!\n')
+    
+
+
+def get_subdaily_optimized(name_file):
+    """
+    Calculate subdaily maximum precipitation values from daily data using CETESB disaggregation factors.
+
+    Parameters:
+    - name_file (str): The name of the daily data file without extension (used to read and save CSV files).
+    
+    The function reads daily maximum precipitation data, applies disaggregation factors for 
+    different time intervals, and saves the resulting subdaily maximum precipitation values 
+    to a new CSV file.
+    """
+    
+    # Read disaggregation factors from CSV
+    df_disagreg_factors = pd.read_csv('fatores_desagregacao.csv')
+    
+    # Read daily maximum precipitation data
+    df_aut = pd.read_csv(f'Results/tests/max_daily_{name_file}.csv')
+
+    # Create a copy of the daily precipitation DataFrame to store subdaily calculations
+    df_subdaily = df_aut.copy()
+
+    # Define the time intervals (in minutes) for which we will calculate subdaily maximums
+    time_intervals = [5, 10, 15, 20, 25, 30, 60, 360, 480, 600, 720, 1440]  # minutes
+    adjustments = [0, 0, 0, 0, 0, 0, 0.05, -0.05, -0.1, -0.1, -0.1, -0.01]  # adjustments for specific intervals
+
+    # Calculate maximum precipitation for each interval
+    for i, interval in enumerate(time_intervals):
+        # Calculate maximum subdaily value using the corresponding disaggregation factor
+        factor = df_disagreg_factors['CETESB_ger'][i]
+        adjustment = 1 + adjustments[i] if adjustments[i] > 0 else 1 + adjustments[i]
+        
+        # Store the calculated maximum subdaily value in the DataFrame
+        df_subdaily[f'Max_{interval}min'] = df_subdaily['Precipitation'] * factor * adjustment
+
+    # Save the resulting subdaily maximums to a new CSV file
+    df_subdaily.to_csv(f'Results/tests/max_subdaily_{name_file}_otimizado.csv', index=False)
+    
+
+
+def plot_optimized_subdaily(name_file, max_hour):
+    """
+    Gera um gráfico comparativo das diferenças entre as máximas de precipitação
+    observadas e as estimativas de duas fontes (CETESB e dados otimizados) para um intervalo de tempo específico.
+    
+    Args:
+        name_file (str): Nome do arquivo (sem extensão) que será utilizado para ler os dados de precipitação.
+        max_hour (int): Hora máxima a ser considerada nas diferenças de precipitação.
+    """
+    
+    print('Iniciando a plotagem das máximas subdiárias relativas...')
+    print('')
+
+    # Leitura dos dados observados, CETESB e otimizados
+    df_observed = pd.read_csv(f'Results/tests/max_subdaily_{name_file}.csv')
+    df_observed['Type'] = 'Observado'
+
+    df_cetesb = pd.read_csv(f'Results/tests/max_subdaily_{name_file}_ger.csv')
+    df_cetesb['Type'] = 'CETESB'
+
+    df_optimized = pd.read_csv(f'Results/tests/max_subdaily_{name_file}_otimizado.csv')
+    df_optimized['Type'] = 'CETESB_otimizado'
+    
+    # Combinação dos DataFrames em um único DataFrame
+    df_final = pd.concat([df_observed, df_cetesb, df_optimized], ignore_index=True, sort=False)
+    df_final = df_final[['Year', 'Max_1h', 'Max_6h', 'Max_8h', 'Max_10h', 'Max_12h', 'Max_24h', 'Type']]
+    
+    # Processamento dos dados para calcular as diferenças
+    df_diff_cetesb = df_final[df_final['Type'] == 'CETESB'].reset_index()
+    df_diff_optimized = df_final[df_final['Type'] == 'CETESB_otimizado'].reset_index()
+    df_obs = df_final[df_final['Type'] == 'Observado'].reset_index()
+
+    # Cálculo das diferenças
+    df_diff_cetesb[f'Dif_{max_hour}h'] = df_obs[f'Max_{max_hour}h'] - df_diff_cetesb[f'Max_{max_hour}h']
+    df_diff_optimized[f'Dif_{max_hour}h'] = df_obs[f'Max_{max_hour}h'] - df_diff_optimized[f'Max_{max_hour}h']
+
+    # Soma dos erros
+    sum_error_cetesb = df_diff_cetesb[f'Dif_{max_hour}h'].sum()
+    sum_error_optimized = df_diff_optimized[f'Dif_{max_hour}h'].sum()
+    
+    print(f'Soma do erro CETESB: {sum_error_cetesb}\n')
+    print(f'Soma do erro otimizado: {sum_error_optimized}\n')
+
+    # Preparação dos dados para o gráfico
+    df_graph = pd.concat([df_diff_cetesb, df_diff_optimized], ignore_index=True, sort=False)
+
+    # Criação do gráfico de barras para as diferenças
+    g = sns.catplot(x="Year", y=f'Dif_{max_hour}h', hue='Type', data=df_graph, kind='bar', height=5, aspect=1.5)
+    g.set_axis_labels('', 'Precipitação')
+    fig = g.figure
+    fig.subplots_adjust(bottom=0.15, top=0.9, left=0.07)    
+    plt.xticks(rotation=50)
+    plt.ylim(-100, 50)
+    plt.title(f'Subdiário {name_file} - {max_hour}h - otimizados')
+
+    # Salvando o gráfico
+    plt.savefig(f'Graphs/subdaily_variations/{name_file}_max{max_hour}_opt_relative.png')
+    print(f'Gráfico das diferenças máximas de {max_hour}h concluído!\n')
+    
+
 
 
     
     
 # Teste a função
-#jd_sp, cidade_jardim, agua_vermelha = process_data(DataSource.CEMADEN,'datasets')
 INMET_aut_df, INMET_conv_df = process_data(DataSource.INMET,'datasets')
+MAPLU_esc_df, MAPLU_post_df = process_data(DataSource.MAPLU, 'datasets', year_start=2015, year_end=2018)
+#jd_sp, cidade_jardim, agua_vermelha = process_data(DataSource.CEMADEN,'datasets')
 #INMET_DAILY_aut_df, INMET_DAILY_conv_df = process_data('INMET_DAILY')
-MAPLU_esc_df, MAPLU_post_df = process_data(DataSource.MAPLU, 'datasets', year_start=2015, year_end=2017)
+
 
 
 # Exibir os primeiros resultados de cada DataFrame
@@ -806,13 +1452,48 @@ MAPLU_esc_df, MAPLU_post_df = process_data(DataSource.MAPLU, 'datasets', year_st
 
 # Supondo que 'df' seja o DataFrame carregado e processado
 aggregate_to_csv(INMET_aut_df, 'inmet')
-aggregate_to_csv(MAPLU_esc_df, 'maplu')
+#aggregate_to_csv(MAPLU_esc_df, 'maplu')
 #aggregate_to_csv(jd_sp, 'jardim')
 
 
 # Para ler um arquivo CSV específico
-#df_inmet = read_csv('inmet', 'hourly')
-df_maplu = read_csv('maplu', 'min')
+df_inmet = read_csv('inmet', 'yearly')
+df_inmet_monthly = read_csv('inmet', 'monthly')
+df_inmet_daily = read_csv('inmet', 'daily')
+#df_maplu = read_csv('maplu', 'min')
+
+# Valor de ajuste para os fatores
+#var_value = 0.2
+
+# Chama a função para obter os fatores de desagregação
+#df_disagreg_factors = get_disagregation_factors(var_value)
+
+# Exibe o DataFrame resultante
+#print(df_disagreg_factors)
+
+#df_subdaily_inmet = get_max_subdaily_table('inmet')
+
+max_anual = max_annual_precipitation(df_inmet_daily,name_file='inmet')
+
+print("Máximo anual:\n", max_anual, "\n")
+
+get_subdaily_from_disagregation_factors(df=max_anual, type_of_disagregator='plus', var_value=0.2, name_file='inmet')
+get_subdaily_from_disagregation_factors(df=max_anual, type_of_disagregator='original', var_value=0.2, name_file='inmet')
+get_subdaily_from_disagregation_factors(df=max_anual, type_of_disagregator='minus', var_value=0.2, name_file='inmet')
+
+plot_subdaily_maximum_absolute('inmet')
+
+#plot_subdaily_maximum_relative('inmet',12,0.2)
+
+get_subdaily_optimized('inmet')
+
+plot_optimized_subdaily('inmet',12)
+
+#merge_max_tables('maplu')
+
+#df_inmet_3hour = get_subdaily_extremes(df_inmet,3)
+
+#print(df_inmet_3hour)
 
 #print(df_inmet[:64]) 
 
@@ -822,19 +1503,19 @@ df_maplu = read_csv('maplu', 'min')
 
 #print(df_maplu[1590:1651]) 
 
-#df_maplu_10min = aggregate_precipitation(df_maplu,10,1)
+#df_maplu_10min = get_subdaily_extremes(df_maplu,10,1)
 
-#print(df_maplu_10min[1590:1651])
+#print(df_maplu_10min)
 
-#calculate_p90(df_inmet)
+calculate_p90(df_inmet)
 
-#distribution_plot('inmet','yearly')
-#distribution_plot_df(df_inmet)
-#distribution_plot('inmet','monthly')
-#distribution_plot('inmet','daily')
+distribution_plot('inmet','yearly')
+distribution_plot('inmet','monthly')
+distribution_plot('inmet','daily')
 
 
 #df_inmet = complete_date_series('inmet', 'monthly')
+
 
 
 #print("Jardim São Paulo:\n", df_jd.head(), "\n")
@@ -845,7 +1526,7 @@ df_maplu = read_csv('maplu', 'min')
 #print(df_inmet.tail())
 
 
-#trend_analysis(df_inmet,0.05,site='INMET AUT')
+trend_analysis(df_inmet_monthly,0.05,site='INMET AUT')
 
 sites = ['inmet', 'jardim']
 
@@ -862,7 +1543,7 @@ group_name = 'Group_A'
 data_type = 'obs'
 
 # Chamada da função
-#get_trend(var=var, sites_list=sites, alpha_value=alpha, group=group_name, data_type=data_type, plot_graphs=True)
+get_trend(var=var, sites_list=sites, alpha_value=alpha, group=group_name, data_type=data_type, plot_graphs=True)
 
 
 

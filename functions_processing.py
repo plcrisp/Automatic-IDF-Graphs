@@ -764,7 +764,7 @@ def get_max_subdaily_table(name_file, directory = 'Results'):
     df_final.to_csv('{d}/max_subdaily_{n}.csv'.format(d = directory, n = name_file), index = False)
     print('Done!')
 
-def get_max_subdaily_min_table(name_file, dt_min, directory = 'Results'):
+def get_max_subdaily_min_table(name_file, dt_min, directory = 'Results/tests'):
     print('Getting maximum subdaily..')
     df_min = pd.read_csv('{d}/{n}_min.csv'.format(d = directory, n = name_file))
     df_5min = get_subdaily_min_max(df_min, 5, dt_min)
