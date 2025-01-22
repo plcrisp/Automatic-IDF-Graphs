@@ -11,6 +11,7 @@ from sklearn.linear_model import LinearRegression
 import pymannkendall as mk
 import statsmodels.api as sm
 from enum import Enum
+import inspect
 
 class DataSource(Enum):
     """Enum para as fontes de dados meteorológicos."""
@@ -206,7 +207,7 @@ def save_to_csv(df, name, var, directory):
 
 
 # Função agregada e mais flexível para salvar diferentes agregações
-def aggregate_to_csv(df, name, directory='Results/tests'):
+def aggregate_to_csv(df, name, directory='Results'):
     """
     Agrega os dados e salva em arquivos CSV anuais, mensais e diários.
     
@@ -235,7 +236,7 @@ def aggregate_to_csv(df, name, directory='Results/tests'):
 
 
 # Função para ler CSV
-def read_csv(name, var, directory='Results/tests'):
+def read_csv(name, var, directory='Results'):
     """
     Lê um arquivo CSV gerado pela agregação.
     
@@ -309,25 +310,6 @@ def set_date(df):
     # Define 'Date' como índice e retorna o DataFrame atualizado
     df.set_index('Date', inplace=True)
     
-    return df
-
-
-
-def complete_date_series(name, var):
-    """
-    Completa uma série temporal, garantindo que todas as datas entre a primeira
-    e a última entrada estejam presentes no DataFrame, preenchendo datas faltantes.
-    
-    Parâmetros:
-    name (str): Nome base do arquivo CSV contendo os dados.
-    var (str): Variável de agregação (ex: 'yearly', 'monthly').
-    
-    Retorna:
-    DataFrame: DataFrame com a série temporal completa e as datas reindexadas.
-    """
-    # Lê o DataFrame do arquivo CSV e configura a coluna 'Date' como índice
-    df = set_date(read_csv(name, var))
-
     # Cria uma faixa de datas completa entre a primeira e a última data usando o índice
     idx = pd.date_range(df.index[0], df.index[-1])
     
@@ -335,7 +317,46 @@ def complete_date_series(name, var):
     df = df.reindex(idx)
     df['Date'] = df.index
 
+    # Preenche as colunas 'Year', 'Month' e 'Day' com os valores corretos
+    df['Year'] = df.index.year
+    df['Month'] = df.index.month
+    df['Day'] = df.index.day
+
     return df
+
+
+
+def fill_missing_data(name, var):
+    """
+    Preenche os valores faltantes na coluna 'Precipitation' de um DataFrame
+    utilizando interpolação sazonal (baseada em grupos mensais).
+
+    Parâmetros:
+    ----------
+    name : str
+        Nome do arquivo ou base de dados a ser carregado.
+    var : str
+        Tipo de dados ou variável a ser processada (ex.: 'daily').
+
+    Retorna:
+    -------
+    df : pandas.DataFrame
+        DataFrame com os valores interpolados na coluna 'Precipitation'.
+        Os índices do DataFrame permanecem alinhados com os valores originais.
+    """
+    df = set_date(read_csv(name, var))
+    
+    # Realiza a interpolação sazonal (por mês)
+    interpolated = (
+        df.groupby('Month')['Precipitation']
+        .apply(lambda group: group.interpolate(method='linear'))
+    )
+
+    # Realinha os índices do resultado interpolado com o DataFrame original
+    df['Precipitation'] = interpolated.reset_index(level=0, drop=True)
+
+    return df
+
 
 
 
@@ -521,13 +542,14 @@ def trend_analysis(data, alpha_value, plot_graphs=True, site=''):
         plt.title(f'Trend Analysis for {site}')
         plt.legend()
         plt.show()
-        
-        
-        
+
+
+
 def get_trend(var, sites_list, alpha_value, group, data_type='obs', plot_graphs=True):
     """
     Realiza a análise de tendência em dados de precipitação usando diferentes variações do 
-    teste de Mann-Kendall. Os resultados são armazenados em um CSV para cada grupo e tipo de dado.
+    teste de Mann-Kendall. Os resultados são armazenados em um CSV para cada grupo e tipo de dado,
+    e gráficos de tendência são gerados se plot_graphs=True.
 
     Parâmetros:
     -----------
@@ -542,18 +564,13 @@ def get_trend(var, sites_list, alpha_value, group, data_type='obs', plot_graphs=
     data_type : str, opcional
         Tipo de dado: 'obs' para dados observados, 'mod' para dados modelados por GCM.
     plot_graphs : bool, opcional
-        Indica se gráficos de tendência devem ser plotados (não implementado no exemplo atual).
+        Indica se gráficos de tendência devem ser plotados.
 
     Retorno:
     --------
-    Salva um arquivo CSV contendo os resultados da análise de tendência para cada site e teste.
-
-    Exceções:
-    ---------
-    - ZeroDivisionError: Tratamento para evitar erro de divisão por zero em algumas análises.
-    - Exception: Lança uma exceção se ocorrer um erro inesperado durante a execução.
+    Salva um arquivo CSV contendo os resultados da análise de tendência para cada site e teste,
+    além de gráficos de tendência, se plot_graphs=True.
     """
-    
     print('Running get_trend...')
     
     # Dicionário para armazenar os resultados de todos os testes
@@ -587,7 +604,38 @@ def get_trend(var, sites_list, alpha_value, group, data_type='obs', plot_graphs=
         trend_results['Slope'].append(result['slope'])
         trend_results['Intercept'].append(result['intercept'])
 
-    # Mapeamento dos testes de Mann-Kendall disponíveis para evitar repetição de código
+    from scipy.stats import linregress
+
+    def plot_trend_graph(df, site, test_name, slope, intercept, var):
+        plt.figure(figsize=(10, 6))
+        x_var = 'Year'
+        y_var = 'Precipitation'
+
+        # Plota os pontos de dados
+        sns.scatterplot(data=df, x=x_var, y=y_var, color='blue', label='Observações')
+        
+        # Calcula a linha de regressão linear
+        regression = linregress(df[x_var], df[y_var])
+        y_values = regression.slope * df[x_var] + regression.intercept
+        
+        plt.plot(df[x_var], y_values, color='green', label='Linha de Regressão Linear')
+        
+        # Calcula a linha de tendência (Sen's Slope)
+        trend_values = slope * df[x_var] + intercept
+        plt.plot(df[x_var], trend_values, color='red', label=f'Linha de Tendência ({test_name})')
+        
+        # Configurações do gráfico
+        plt.title(f'Tendência de Precipitação - {site} ({test_name})', fontsize=14)
+        plt.xlabel(x_var, fontsize=12)
+        plt.ylabel('Precipitação (mm)', fontsize=12)
+        plt.legend()
+        plt.grid(True, linestyle='--', alpha=0.6)
+        plt.tight_layout()
+        plt.savefig(f'Graphs/{site}_{test_name}_{var}_trend_plot.png')
+        plt.close()
+
+
+    # Mapeamento dos testes de Mann-Kendall disponíveis
     test_functions = {
         'Original': mk.original_test,
         'Hamed-Rao': mk.hamed_rao_modification_test,
@@ -600,7 +648,7 @@ def get_trend(var, sites_list, alpha_value, group, data_type='obs', plot_graphs=
     for site in sites_list:
         # Define o caminho do arquivo CSV com base no tipo de dado e variável
         if data_type == 'obs':
-            file_path = f'Results/tests/{site}_yearly.csv' if var == 'Year' else f'Results/max_daily_{site}.csv'
+            file_path = f'Results/{site}_yearly.csv' if var == 'Year' else f'Results/max_daily_{site}.csv'
         elif data_type == 'mod':
             file_path = f'GCM_data/bias_correction/{site}_yearly.csv' if var == 'Year' else f'GCM_data/bias_correction/max_daily_{site}.csv'
         else:
@@ -611,15 +659,18 @@ def get_trend(var, sites_list, alpha_value, group, data_type='obs', plot_graphs=
         print(f'--- {group} / {site} ---\n')
 
         try:
-            # Aplica todos os testes de Mann-Kendall em um loop
+            # Aplica todos os testes de Mann-Kendall
             for test_name, test_func in test_functions.items():
-                # Executa o teste e armazena os resultados em um dicionário
                 result = test_func(df[['Precipitation']], alpha=alpha_value)
                 store_results(site, test_name, {
                     'Tau': result[4], 'p': result[2], 'trend': result[0], 'h': result[1],
                     'z': result[3], 's': result[5], 'var_s': result[6],
                     'slope': result[7], 'intercept': result[8]
                 })
+                
+                # Gera gráficos se plot_graphs=True
+                if plot_graphs and result[7] is not None and result[8] is not None:
+                    plot_trend_graph(df, site, test_name, result[7], result[8], var)
             print('')
         except ZeroDivisionError:
             print('Division by zero!! - Not possible to perform trend analysis\n')
@@ -639,6 +690,7 @@ def get_trend(var, sites_list, alpha_value, group, data_type='obs', plot_graphs=
     
     # Salva o DataFrame em um arquivo CSV
     df_trend_result.to_csv(output_path, index=False, encoding='latin1')
+
     
     
     
@@ -874,7 +926,7 @@ def get_subdaily_extremes(df, interval, dt_min=None):
 
 
 
-def get_max_subdaily_table(name_file, directory='Results/tests', dt_min=None):
+def get_max_subdaily_table(name_file, directory='Results', dt_min=None):
     """
     Calcula os máximos de precipitação acumulada em intervalos subdiários 
     e salva os resultados em um arquivo CSV. O cálculo pode ser realizado 
@@ -930,7 +982,7 @@ def get_max_subdaily_table(name_file, directory='Results/tests', dt_min=None):
     
     
 
-def merge_max_tables(name_file, directory='Results/tests'):
+def merge_max_tables(name_file, directory='Results'):
     """
     Mescla tabelas de máximos de precipitação acumulada em intervalos de minutos e horas 
     e salva os resultados em um arquivo CSV.
@@ -955,7 +1007,7 @@ def merge_max_tables(name_file, directory='Results/tests'):
     print('Merge completo! Arquivo salvo em:', f'{directory}/max_subdaily_complete_{name_file}.csv')
     
 
-def max_annual_precipitation(df, name_file, output_dir='Results/tests'):
+def max_annual_precipitation(df, name_file, output_dir='Results'):
     """
     Calcula o valor máximo de precipitação anual para cada ano e remove os outliers com base no método de intervalo interquartílico (IQR).
     Em seguida, salva o resultado em um arquivo CSV no diretório especificado.
@@ -1050,7 +1102,7 @@ def get_disagregation_factors(var_value, filename='fatores_desagregacao.csv'):
 
 
 
-def get_subdaily_from_disagregation_factors(df, type_of_disagregator, var_value, name_file, directory='Results/tests'):
+def get_subdaily_from_disagregation_factors(df, type_of_disagregator, var_value, name_file, directory='Results'):
     """
     Calcula os valores subdiários de precipitação baseados em fatores de desagregação.
 
@@ -1342,7 +1394,7 @@ def get_subdaily_optimized(name_file):
     df_disagreg_factors = pd.read_csv('fatores_desagregacao.csv')
     
     # Read daily maximum precipitation data
-    df_aut = pd.read_csv(f'Results/tests/max_daily_{name_file}.csv')
+    df_aut = pd.read_csv(f'Results/max_daily_{name_file}.csv')
 
     # Create a copy of the daily precipitation DataFrame to store subdaily calculations
     df_subdaily = df_aut.copy()
@@ -1361,7 +1413,7 @@ def get_subdaily_optimized(name_file):
         df_subdaily[f'Max_{interval}min'] = df_subdaily['Precipitation'] * factor * adjustment
 
     # Save the resulting subdaily maximums to a new CSV file
-    df_subdaily.to_csv(f'Results/tests/max_subdaily_{name_file}_otimizado.csv', index=False)
+    df_subdaily.to_csv(f'Results/max_subdaily_{name_file}_otimizado.csv', index=False)
     
 
 
@@ -1379,13 +1431,13 @@ def plot_optimized_subdaily(name_file, max_hour):
     print('')
 
     # Leitura dos dados observados, CETESB e otimizados
-    df_observed = pd.read_csv(f'Results/tests/max_subdaily_{name_file}.csv')
+    df_observed = pd.read_csv(f'Resultsmax_subdaily_{name_file}.csv')
     df_observed['Type'] = 'Observado'
 
-    df_cetesb = pd.read_csv(f'Results/tests/max_subdaily_{name_file}_ger.csv')
+    df_cetesb = pd.read_csv(f'Results/max_subdaily_{name_file}_ger.csv')
     df_cetesb['Type'] = 'CETESB'
 
-    df_optimized = pd.read_csv(f'Results/tests/max_subdaily_{name_file}_otimizado.csv')
+    df_optimized = pd.read_csv(f'Results/max_subdaily_{name_file}_otimizado.csv')
     df_optimized['Type'] = 'CETESB_otimizado'
     
     # Combinação dos DataFrames em um único DataFrame
@@ -1430,8 +1482,8 @@ def plot_optimized_subdaily(name_file, max_hour):
     
     
 # Teste a função
-INMET_aut_df, INMET_conv_df = process_data(DataSource.INMET,'datasets')
-MAPLU_esc_df, MAPLU_post_df = process_data(DataSource.MAPLU, 'datasets', year_start=2015, year_end=2018)
+#INMET_aut_df, INMET_conv_df = process_data(DataSource.INMET,'datasets')
+#MAPLU_esc_df, MAPLU_post_df = process_data(DataSource.MAPLU, 'datasets', year_start=2015, year_end=2018)
 #jd_sp, cidade_jardim, agua_vermelha = process_data(DataSource.CEMADEN,'datasets')
 #INMET_DAILY_aut_df, INMET_DAILY_conv_df = process_data('INMET_DAILY')
 
@@ -1451,16 +1503,24 @@ MAPLU_esc_df, MAPLU_post_df = process_data(DataSource.MAPLU, 'datasets', year_st
 
 
 # Supondo que 'df' seja o DataFrame carregado e processado
-aggregate_to_csv(INMET_aut_df, 'inmet')
+#aggregate_to_csv(jd_sp, 'cemaden_jardim')
+#aggregate_to_csv(cidade_jardim, 'cemaden_cidade')
+#aggregate_to_csv(agua_vermelha, 'cemaden_agua')
+#aggregate_to_csv(INMET_aut_df, 'inmet')
+#aggregate_to_csv(INMET_conv_df, 'inmet_conv')
 #aggregate_to_csv(MAPLU_esc_df, 'maplu')
 #aggregate_to_csv(jd_sp, 'jardim')
 
 
 # Para ler um arquivo CSV específico
-df_inmet = read_csv('inmet', 'yearly')
-df_inmet_monthly = read_csv('inmet', 'monthly')
-df_inmet_daily = read_csv('inmet', 'daily')
+#df_inmet = read_csv('inmet', 'yearly')
+#df_inmet_monthly = read_csv('inmet', 'monthly')
+#df_inmet_daily = read_csv('inmet', 'daily')
 #df_maplu = read_csv('maplu', 'min')
+
+df = set_date(read_csv('inmet', 'daily'))
+df2 = fill_missing_data('inmet', 'daily')
+
 
 # Valor de ajuste para os fatores
 #var_value = 0.2
@@ -1473,21 +1533,21 @@ df_inmet_daily = read_csv('inmet', 'daily')
 
 #df_subdaily_inmet = get_max_subdaily_table('inmet')
 
-max_anual = max_annual_precipitation(df_inmet_daily,name_file='inmet')
+#max_anual = max_annual_precipitation(df_inmet_daily,name_file='inmet')
 
-print("Máximo anual:\n", max_anual, "\n")
+#print("Máximo anual:\n", max_anual, "\n")
 
-get_subdaily_from_disagregation_factors(df=max_anual, type_of_disagregator='plus', var_value=0.2, name_file='inmet')
-get_subdaily_from_disagregation_factors(df=max_anual, type_of_disagregator='original', var_value=0.2, name_file='inmet')
-get_subdaily_from_disagregation_factors(df=max_anual, type_of_disagregator='minus', var_value=0.2, name_file='inmet')
+#get_subdaily_from_disagregation_factors(df=max_anual, type_of_disagregator='plus', var_value=0.2, name_file='inmet')
+#get_subdaily_from_disagregation_factors(df=max_anual, type_of_disagregator='original', var_value=0.2, name_file='inmet')
+#get_subdaily_from_disagregation_factors(df=max_anual, type_of_disagregator='minus', var_value=0.2, name_file='inmet')
 
-plot_subdaily_maximum_absolute('inmet')
+#plot_subdaily_maximum_absolute('inmet')
 
 #plot_subdaily_maximum_relative('inmet',12,0.2)
 
-get_subdaily_optimized('inmet')
+#get_subdaily_optimized('inmet')
 
-plot_optimized_subdaily('inmet',12)
+#plot_optimized_subdaily('inmet',12)
 
 #merge_max_tables('maplu')
 
@@ -1507,11 +1567,11 @@ plot_optimized_subdaily('inmet',12)
 
 #print(df_maplu_10min)
 
-calculate_p90(df_inmet)
+#calculate_p90(df_inmet)
 
-distribution_plot('inmet','yearly')
-distribution_plot('inmet','monthly')
-distribution_plot('inmet','daily')
+#distribution_plot('inmet','yearly')
+#distribution_plot('inmet','monthly')
+#distribution_plot('inmet','daily')
 
 
 #df_inmet = complete_date_series('inmet', 'monthly')
@@ -1526,24 +1586,24 @@ distribution_plot('inmet','daily')
 #print(df_inmet.tail())
 
 
-trend_analysis(df_inmet_monthly,0.05,site='INMET AUT')
+#trend_analysis(df_inmet_monthly,0.05,site='INMET AUT')
 
-sites = ['inmet', 'jardim']
+#sites = ['inmet', 'jardim']
 
 # Variável que você quer analisar: 'Year' ou 'Max_daily'
-var = 'Year'
+#var = 'Year'
 
 # Valor de significância para os testes (ex.: 0.05 para 95% de confiança)
-alpha = 0.05
+#alpha = 0.05
 
 # Nome do grupo ao qual os sites pertencem (usado para nomear os arquivos de saída)
-group_name = 'Group_A'
+#group_name = 'Group_A'
 
 # Tipo de dado: 'obs' (observado) ou 'mod' (modelado por GCM)
-data_type = 'obs'
+#data_type = 'obs'
 
 # Chamada da função
-get_trend(var=var, sites_list=sites, alpha_value=alpha, group=group_name, data_type=data_type, plot_graphs=True)
+#get_trend(var=var, sites_list=sites, alpha_value=alpha, group=group_name, data_type=data_type, plot_graphs=True)
 
 
 
