@@ -1,5 +1,7 @@
 import pandas as pd
 from enum import Enum
+from pathlib import Path
+
 
 class DataSource(Enum):
     """Enum para as fontes de dados meteorológicos."""
@@ -54,8 +56,12 @@ def process_data(source: DataSource, data_path, year_start=None, year_end=None):
         print("Processando dados do DataSource.CEMADEN...")
 
         # Lê e concatena os arquivos CSV em um único DataFrame
+        # Obter todos os arquivos CSV no diretório especificado
+        cemaden_files = Path(data_path).glob('CEMADEN/*.csv')
+
+        # Lê e concatena os arquivos CSV em um único DataFrame
         CEMADEN_df = pd.concat(
-            [pd.read_csv(f'{data_path}/CEMADEN/data ({i}).csv', sep=';') for i in range(62)],
+            [pd.read_csv(file, sep=';') for file in cemaden_files],
             ignore_index=True,
             sort=False
         )
@@ -152,7 +158,4 @@ def process_data(source: DataSource, data_path, year_start=None, year_end=None):
     
     else:
         raise ValueError(f"Fonte '{source}' não suportada.")
-
-
-
 

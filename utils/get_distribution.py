@@ -169,18 +169,6 @@ def fit_data(data, MY_DISTRIBUTIONS):
     # Desabilitado devido à versão atual do SciPy
     # st.frechet_r, st.frechet_l: desabilitado na versão atual do SciPy
     # st.levy_stable: leva muito tempo para estimar os parâmetros
-    ALL_DISTRIBUTIONS = [        
-        st.alpha, st.anglit, st.arcsine, st.beta, st.betaprime, st.bradford, st.burr, st.cauchy, st.chi, st.chi2, st.cosine,
-        st.dgamma, st.dweibull, st.erlang, st.expon, st.exponnorm, st.exponweib, st.exponpow, st.f, st.fatiguelife, st.fisk,
-        st.foldcauchy, st.foldnorm, st.genlogistic, st.genpareto, st.gennorm, st.genexpon,
-        st.genextreme, st.gausshyper, st.gamma, st.gengamma, st.genhalflogistic, st.gibrat, st.gompertz, st.gumbel_r,
-        st.gumbel_l, st.halfcauchy, st.halflogistic, st.halfnorm, st.halfgennorm, st.hypsecant, st.invgamma, st.invgauss,
-        st.invweibull, st.johnsonsb, st.johnsonsu, st.ksone, st.kstwobign, st.laplace, st.levy, st.levy_l,
-        st.logistic, st.loggamma, st.loglaplace, st.lognorm, st.lomax, st.maxwell, st.mielke, st.nakagami, st.ncx2, st.ncf,
-        st.nct, st.norm, st.pareto, st.pearson3, st.powerlaw, st.powerlognorm, st.powernorm, st.rdist, st.reciprocal,
-        st.rayleigh, st.rice, st.recipinvgauss, st.semicircular, st.t, st.triang, st.truncexpon, st.truncnorm, st.tukeylambda,
-        st.uniform, st.vonmises, st.vonmises_line, st.wald, st.weibull_min, st.weibull_max, st.wrapcauchy
-    ]
 
     # Validação do parâmetro 'data'
     if not isinstance(data, (list, np.ndarray)):
@@ -303,7 +291,7 @@ def get_parameters(data, results, n):
 
 
 
-def main_daily():
+def main_daily(name_file='inmet_conv'):
     """
     Função principal para carregar dados de precipitação, ajustar distribuições, 
     realizar testes de ajuste e salvar os resultados.
@@ -313,10 +301,10 @@ def main_daily():
     2. Ajustar distribuições selecionadas aos dados.
     3. Gerar histogramas e realizar o teste de bondade de ajuste.
     4. Obter parâmetros das distribuições ajustadas e salvar os resultados.
-    """
     
-    # Nome do arquivo base (sem extensão)
-    name_file = 'inmet_conv'
+    Parâmetro:
+    - name_file (str): Nome do arquivo base (sem a extensão). Exemplo: 'inmet_conv'.
+    """
     
     # Tentativa de leitura do arquivo de dados
     try:
@@ -334,21 +322,19 @@ def main_daily():
     data_df = data_df_original[['Precipitation']]
     mean = data_df.iloc[:, 0].mean()
     
-    data = data_df.values.ravel() # Converte os dados de precipitação para um array numpy
+    data = data_df.values.ravel()  # Converte os dados de precipitação para um array numpy
     
-    MY_DISTRIBUTIONS = [st.norm, st.lognorm, st.genextreme, st.gumbel_r, st.genlogistic] # Definição das distribuições a serem ajustadas
+    MY_DISTRIBUTIONS = [st.norm, st.lognorm, st.genextreme, st.gumbel_r, st.genlogistic]  # Definição das distribuições a serem ajustadas
     
-    results = fit_data(data, MY_DISTRIBUTIONS) # Ajuste de distribuições aos dados
+    results = fit_data(data, MY_DISTRIBUTIONS)  # Ajuste de distribuições aos dados
     
-    plot_histogram(data, results, 5) # Plota o histograma e as distribuições ajustadas
+    plot_histogram(data, results, 5)  # Plota o histograma e as distribuições ajustadas
     
-     
-    goodness_of_fit(data, results, 5, mean) # Realiza o teste de bondade de ajuste
+    goodness_of_fit(data, results, 5, mean)  # Realiza o teste de bondade de ajuste
     
+    df_parameters = get_parameters(data, results, 5)  # Obtém os parâmetros das distribuições ajustadas e cria um DataFrame
     
-    df_parameters = get_parameters(data, results, 5) # Obtém os parâmetros das distribuições ajustadas e cria um DataFrame
-    
-    df_parameters.to_csv(f'Results/{name_file}_dist_params.csv', index=False) # Salva os parâmetros em um arquivo CSV
+    df_parameters.to_csv(f'Results/{name_file}_dist_params.csv', index=False)  # Salva os parâmetros em um arquivo CSV
     
     print(f"Processamento concluído. Parâmetros das distribuições salvos em 'Results/{name_file}_dist_params.csv'.")
 
