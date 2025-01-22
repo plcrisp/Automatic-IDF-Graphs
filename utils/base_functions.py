@@ -4,170 +4,9 @@ import os
 from datetime import date
 import seaborn as sns
 import matplotlib.pyplot as plt
-from matplotlib import style
-import scipy
-from scipy.stats import pearsonr, spearmanr
+from scipy.stats import pearsonr
 from sklearn.linear_model import LinearRegression
 import pymannkendall as mk
-import statsmodels.api as sm
-from enum import Enum
-import inspect
-
-class DataSource(Enum):
-    """Enum para as fontes de dados meteorológicos."""
-    
-    CEMADEN = 'CEMADEN'
-    INMET = 'INMET'
-    INMET_DAILY = 'INMET_DAILY'
-    MAPLU = 'MAPLU'
-    MAPLU_USP = 'MAPLU_USP'
-
-def convert_to_numeric(df, columns):
-    """
-    Converte colunas especificadas de um DataFrame para tipo numérico.
-
-    Parâmetros:
-        df (DataFrame): O DataFrame a ser processado.
-        columns (list): Lista com os nomes das colunas a serem convertidas.
-    
-    Retorna:
-        DataFrame: O DataFrame com as colunas convertidas.
-    """
-    for col in columns:
-        df[col] = pd.to_numeric(df[col], downcast='integer')
-    return df
-
-
-def process_data(source: DataSource, data_path, year_start=None, year_end=None):
-    """
-    Processa dados meteorológicos de diferentes fontes.
-
-    Parâmetros:
-        source (DataSource): Enumeração que define as fontes válidas: 'CEMADEN', 'INMET', 'INMET_DAILY', 'MAPLU', 'MAPLU_USP'.
-        data_path (str): Caminho para a pasta onde os dados estão armazenados.
-        year_start (int, opcional): Ano inicial para filtragem, se aplicável.
-        year_end (int, opcional): Ano final para filtragem, se aplicável.
-
-
-    Retornos:
-        - Se source for 'CEMADEN': Retorna três DataFrames correspondentes aos sites:
-          (DataFrame Jd_Sao_Paulo, DataFrame Cidade_Jardim, DataFrame Agua_Vermelha).
-        - Se source for 'INMET' ou 'INMET_DAILY': Retorna dois DataFrames
-          (DataFrame aut, DataFrame conv).
-        - Se source for 'MAPLU': Retorna dois DataFrames
-          (DataFrame Escola, DataFrame Posto).
-        - Se source for 'MAPLU_USP': Retorna um DataFrame (DataFrame USP).
-
-    Exemplo de uso:
-        df1, df2 = process_data('INMET', 'datasets/')
-    """
-
-    if source == DataSource.CEMADEN:
-        print("Processando dados do DataSource.CEMADEN...")
-
-        # Lê e concatena os arquivos CSV em um único DataFrame
-        CEMADEN_df = pd.concat(
-            [pd.read_csv(f'{data_path}/CEMADEN/data ({i}).csv', sep=';') for i in range(62)],
-            ignore_index=True,
-            sort=False
-        )
-
-        # Renomeia as colunas e seleciona as relevantes
-        CEMADEN_df.columns = ['1', '2', '3', '4', '5', '6', '7', '8']
-        CEMADEN_df = CEMADEN_df[['5', '6', '7']]
-        CEMADEN_df.columns = ['Site', 'Date', 'Precipitation']
-
-        # Substitui vírgulas por pontos nas precipitações e renomeia locais
-        CEMADEN_df['Precipitation'] = CEMADEN_df['Precipitation'].str.replace(',', '.')
-        site_replacements = {
-            '-22,031': 'Jd_Sao_Paulo',
-            '-21,997': 'Cidade_Jardim',
-            '-21,898': 'Agua_Vermelha'
-        }
-        CEMADEN_df['Site'] = CEMADEN_df['Site'].replace(site_replacements)
-
-        # Divide a coluna Date em Year, Month, Day, Hour
-        CEMADEN_df[['Year', 'Month', 'Day_hour']] = CEMADEN_df.Date.str.split("-", expand=True)
-        CEMADEN_df[['Day', 'Hour_min']] = CEMADEN_df.Day_hour.str.split(" ", expand=True)
-        CEMADEN_df[['Hour', 'Min', 'Seg']] = CEMADEN_df.Hour_min.str.split(":", expand=True)
-
-        # Seleciona as colunas relevantes para o DataFrame final
-        CEMADEN_df = CEMADEN_df[['Site', 'Year', 'Month', 'Day', 'Hour', 'Precipitation']]
-
-        # Converte as colunas especificadas para numérico
-        CEMADEN_df = convert_to_numeric(CEMADEN_df, ['Year', 'Month', 'Day', 'Hour', 'Precipitation'])
-
-        # Filtra os DataFrames por site
-        jd_sp = CEMADEN_df[CEMADEN_df['Site'] == 'Jd_Sao_Paulo']
-        cidade_jardim = CEMADEN_df[CEMADEN_df['Site'] == 'Cidade_Jardim']
-        agua_vermelha = CEMADEN_df[CEMADEN_df['Site'] == 'Agua_Vermelha']
-
-        return jd_sp, cidade_jardim, agua_vermelha
-
-    elif source in {DataSource.INMET, DataSource.INMET_DAILY}:
-        print(f"Processando dados do {source}...")
-
-        def process_inmet_data(file_path):
-            """Processa os dados do INMET."""
-            df = pd.read_csv(file_path, sep=';')
-            df.columns = ['Date', 'Hour', 'Precipitation', 'Null']
-            df = df[['Date', 'Hour', 'Precipitation']]
-            df[['Year', 'Month', 'Day']] = df.Date.str.split("-", expand=True)
-            df['Hour'] = df['Hour'].astype(float) / 100  # Converte hora para formato decimal
-            return convert_to_numeric(df, ['Year', 'Month', 'Day', 'Hour'])
-
-        if source == DataSource.INMET:
-            # Processa os dados de estações automáticas e convencionais
-            aut_df = process_inmet_data(f'{data_path}/INMET/data_aut_8h.csv')
-            conv_df = process_inmet_data(f'{data_path}/INMET/data_conv_8h.csv')
-        else:  # INMET_DAILY
-            # Processa os dados diários de estações automáticas e convencionais
-            aut_df = process_inmet_data(f'{data_path}/INMET/data_aut_daily.csv')
-            conv_df = process_inmet_data(f'{data_path}/INMET/data_conv_daily.csv')
-
-        return aut_df, conv_df
-
-    elif source == DataSource.MAPLU:
-        print("Processando dados do DataSource.MAPLU...")
-
-        def process_maplu_data(file_path, site_name):
-            """Processa dados específicos do MAPLU."""
-            df = pd.read_csv(file_path)
-            df.columns = ['Site', 'Date', 'Precipitation']
-            df['Site'] = site_name
-            df[['Year', 'Month', 'Day_hour']] = df.Date.str.split("-", expand=True)
-            df[['Day', 'Hour_min']] = df.Day_hour.str.split(" ", expand=True)
-            df[['Hour', 'Min']] = df.Hour_min.str.split(":", expand=True)
-            df = df[['Site', 'Year', 'Month', 'Day', 'Hour', 'Min', 'Precipitation']]
-            return convert_to_numeric(df, ['Year', 'Month', 'Day', 'Hour', 'Min', 'Precipitation'])
-
-        # Processa os dados da Escola e do Posto de Saúde
-        esc_df = pd.concat(
-            [process_maplu_data(f'{data_path}/MAPLU/escola{i}.csv', 'Escola Sao Bento') for i in range(year_start, year_end + 1)],
-            ignore_index=True
-        )
-        posto_df = pd.concat(
-            [process_maplu_data(f'{data_path}/MAPLU/postosaude{i}.csv', 'Posto Santa Felicia') for i in range(year_start, year_end + 1)],
-            ignore_index=True
-        )
-
-        return esc_df, posto_df
-
-    elif source == DataSource.MAPLU_USP:
-        print("Processando dados do DataSource.MAPLU_USP...")
-
-        # Lê e processa os dados da USP
-        usp_df = pd.read_csv(f'{data_path}/MAPLU/USP2.csv')
-        usp_df[['Hour', 'Min']] = usp_df.Time.str.split(":", expand=True)
-        usp_df = usp_df[['Year', 'Month', 'Day', 'Hour', 'Min', 'Precipitation']]
-        return convert_to_numeric(usp_df, ['Year', 'Month', 'Day', 'Hour', 'Min', 'Precipitation'])
-    
-    else:
-        raise ValueError(f"Fonte '{source}' não suportada.")
-
-
-
-
 
 # Função para agregação flexível
 def aggregate(df, vars):
@@ -209,7 +48,7 @@ def save_to_csv(df, name, var, directory):
 # Função agregada e mais flexível para salvar diferentes agregações
 def aggregate_to_csv(df, name, directory='Results'):
     """
-    Agrega os dados e salva em arquivos CSV anuais, mensais e diários.
+    Agrega os dados e salva em arquivos CSV anuais, mensais, diários e por hora.
     
     Parâmetros:
     df (DataFrame): O DataFrame com os dados.
@@ -287,9 +126,9 @@ def verification(df):
     if verif_number > 0:
         print(f'Fail - series incomplete / number of days missing = {verif_number}')
     elif verif_number == 0:
-        print('Series complete')
+        print('Series complete!')
     else:
-        print('Fail - dataset inválido')
+        print('Fail - invalid dataset')
         
         
         
@@ -723,35 +562,6 @@ def calculate_p90(data):
     plt.show()
     
     return p90_value
-
-
-
-def distribution_plot(name, var):
-    """
-    Gera um gráfico de densidade dos dados de precipitação 
-    contidos em um arquivo CSV.
-
-    Parâmetros:
-    name (str): Nome do arquivo CSV.
-    var (str): Nome da coluna de precipitação a ser exibida no título do gráfico.
-
-    Retorna:
-    None: Exibe o gráfico de densidade.
-    """
-    
-    # Lê o arquivo CSV e carrega a coluna especificada
-    df = read_csv(name, var)
-    
-    # Remove valores ausentes
-    df = df.dropna()
-    
-    # Gera o gráfico de densidade
-    sns.kdeplot(df['Precipitation'], color='skyblue', fill=True)
-    
-    plt.title(f'{name} - {var}')
-    plt.xlabel('Precipitation (mm)')
-    plt.ylabel('Density')
-    plt.show()
     
     
 
@@ -1079,7 +889,7 @@ def remove_outliers_from_max(df):
 
  
 
-def get_disagregation_factors(var_value, filename='fatores_desagregacao.csv'):
+def get_disagregation_factors(var_value, filename='parameters/fatores_desagregacao.csv'):
     """
     Lê os fatores de desagregação de um arquivo CSV e calcula fatores 
     baseados em um valor de variável fornecido.
@@ -1478,137 +1288,65 @@ def plot_optimized_subdaily(name_file, max_hour):
     
 
 
+def process_precipitation_series(file_names, frequency):
+    """
+    Processa séries temporais de precipitação, realiza leitura, preenchimento de gaps,
+    união, cálculo de médias acumuladas e cria gráficos de dupla massa.
 
-    
-    
-# Teste a função
-#INMET_aut_df, INMET_conv_df = process_data(DataSource.INMET,'datasets')
-#MAPLU_esc_df, MAPLU_post_df = process_data(DataSource.MAPLU, 'datasets', year_start=2015, year_end=2018)
-#jd_sp, cidade_jardim, agua_vermelha = process_data(DataSource.CEMADEN,'datasets')
-#INMET_DAILY_aut_df, INMET_DAILY_conv_df = process_data('INMET_DAILY')
+    Args:
+        file_names (list): Lista com os nomes dos arquivos (sem extensão).
+        frequency (str): Frequência das séries ('daily', 'monthly', etc.).
+        output_csv (str): Caminho do arquivo de saída CSV para salvar os dados processados.
 
+    Returns:
+        None
+    """
 
+    def load_and_verify(file_name, frequency):
+        """
+        Lê um arquivo CSV e realiza a verificação de gaps.
 
-# Exibir os primeiros resultados de cada DataFrame
+        Args:
+            file_name (str): Nome do arquivo sem extensão.
+            frequency (str): Frequência esperada ('daily', 'monthly', etc.).
 
-#print("Jardim São Paulo:\n", jd_sp.head(), "\n")
-#print("Cidade Jardim:\n", cidade_jardim.head(), "\n")
-#print("Água Vermelha:\n", agua_vermelha.head(), "\n")
-#print("Inmet Aut:\n", INMET_aut_df.head(), "\n")
-#print("Inmet conv:\n", INMET_conv_df.head(), "\n")
-#print("Inmet Daily Aut:\n", INMET_DAILY_aut_df.head(), "\n")
-#print("Inmet Daily conv:\n", INMET_DAILY_conv_df.head(), "\n")
-#print("MAPLU Escola:\n", MAPLU_esc_df.head(), "\n")
-#print("MAPLU Posto Saude:\n", MAPLU_post_df.head(), "\n")
+        Returns:
+            pd.DataFrame: DataFrame com os dados carregados e verificados.
+        """
+        df = read_csv(file_name, frequency)  # Lê o arquivo usando a função específica definida no módulo
+        verification(df)  # Verifica gaps ou inconsistências na série
+        return df
 
+    # ----------------- ETAPA 1: LEITURA E VERIFICAÇÃO DE GAPS ----------------- #
+    dataframes = {name: load_and_verify(name, frequency) for name in file_names}
 
-# Supondo que 'df' seja o DataFrame carregado e processado
-#aggregate_to_csv(jd_sp, 'cemaden_jardim')
-#aggregate_to_csv(cidade_jardim, 'cemaden_cidade')
-#aggregate_to_csv(agua_vermelha, 'cemaden_agua')
-#aggregate_to_csv(INMET_aut_df, 'inmet')
-#aggregate_to_csv(INMET_conv_df, 'inmet_conv')
-#aggregate_to_csv(MAPLU_esc_df, 'maplu')
-#aggregate_to_csv(jd_sp, 'jardim')
+    # ----------------- ETAPA 2: PREENCHIMENTO DE GAPS ----------------- #
+    dataframes = {name: fill_missing_data(name, frequency) for name in file_names}
 
+    # ----------------- ETAPA 3: UNIÃO E PROCESSAMENTO ----------------- #
+    df = left_join_precipitation(*dataframes.values())
+    df.columns = ['Date'] + [f'P_{name}' for name in file_names]
 
-# Para ler um arquivo CSV específico
-#df_inmet = read_csv('inmet', 'yearly')
-#df_inmet_monthly = read_csv('inmet', 'monthly')
-#df_inmet_daily = read_csv('inmet', 'daily')
-#df_maplu = read_csv('maplu', 'min')
+    df = df.dropna()  # Remove linhas com valores NaN (dados ausentes)
+    df['P_average'] = df.iloc[:, 1:].mean(axis=1)  # Calcula a média das colunas de precipitação para cada dia
 
-#df = set_date(read_csv('inmet', 'daily'))
-#df2 = fill_missing_data('inmet', 'daily')
+    for col in df.columns[1:]:  # Calcula as somas acumuladas para cada estação e para a média
+        df[f'Pacum_{col}'] = df[col].fillna(0).cumsum()
 
+    # ----------------- ETAPA 4: PLOTAGEM ----------------- #
+    sns.set_context("talk", font_scale=0.8)  # Define um estilo apropriado para apresentações
+    fig, axes = plt.subplots(1, len(file_names), figsize=(20, 6), sharey=True)  # Cria figura com subplots lado a lado
 
-# Valor de ajuste para os fatores
-#var_value = 0.2
+    for ax, name in zip(axes, file_names):
+        sns.scatterplot(
+            x="Pacum_P_average",  # Eixo X: soma acumulada da precipitação média
+            y=f"Pacum_P_{name}",  # Eixo Y: soma acumulada da estação específica
+            data=df,  # DataFrame com os dados
+            ax=ax  # Define o subplot atual
+        )
+        ax.set_xlabel("Média Pacum (mm)")  # Define o rótulo do eixo X
+        ax.set_ylabel(f"Pacum {name} (mm)")  # Define o rótulo do eixo Y
+        ax.set_title(f"Dispersão de {name}")  # Define o título do subplot
 
-# Chama a função para obter os fatores de desagregação
-#df_disagreg_factors = get_disagregation_factors(var_value)
-
-# Exibe o DataFrame resultante
-#print(df_disagreg_factors)
-
-#df_subdaily_inmet = get_max_subdaily_table('inmet')
-
-#max_anual = max_annual_precipitation(df_inmet_daily,name_file='inmet')
-
-#print("Máximo anual:\n", max_anual, "\n")
-
-#get_subdaily_from_disagregation_factors(df=max_anual, type_of_disagregator='plus', var_value=0.2, name_file='inmet')
-#get_subdaily_from_disagregation_factors(df=max_anual, type_of_disagregator='original', var_value=0.2, name_file='inmet')
-#get_subdaily_from_disagregation_factors(df=max_anual, type_of_disagregator='minus', var_value=0.2, name_file='inmet')
-
-#plot_subdaily_maximum_absolute('inmet')
-
-#plot_subdaily_maximum_relative('inmet',12,0.2)
-
-#get_subdaily_optimized('inmet')
-
-#plot_optimized_subdaily('inmet',12)
-
-#merge_max_tables('maplu')
-
-#df_inmet_3hour = get_subdaily_extremes(df_inmet,3)
-
-#print(df_inmet_3hour)
-
-#print(df_inmet[:64]) 
-
-#df_inmet_3hour = aggregate_precipitation(df_inmet,60)
-
-#print(df_inmet_3hour[:64]) 
-
-#print(df_maplu[1590:1651]) 
-
-#df_maplu_10min = get_subdaily_extremes(df_maplu,10,1)
-
-#print(df_maplu_10min)
-
-#calculate_p90(df_inmet)
-
-#distribution_plot('inmet','yearly')
-#distribution_plot('inmet','monthly')
-#distribution_plot('inmet','daily')
-
-
-#df_inmet = complete_date_series('inmet', 'monthly')
-
-
-
-#print("Jardim São Paulo:\n", df_jd.head(), "\n")
-#print("Cidade Jardim:\n", df_cj.head(), "\n")
-#print("Água Vermelha:\n", df_av.head(), "\n")
-
-#print(df_inmet.head())
-#print(df_inmet.tail())
-
-
-#trend_analysis(df_inmet_monthly,0.05,site='INMET AUT')
-
-#sites = ['inmet', 'jardim']
-
-# Variável que você quer analisar: 'Year' ou 'Max_daily'
-#var = 'Year'
-
-# Valor de significância para os testes (ex.: 0.05 para 95% de confiança)
-#alpha = 0.05
-
-# Nome do grupo ao qual os sites pertencem (usado para nomear os arquivos de saída)
-#group_name = 'Group_A'
-
-# Tipo de dado: 'obs' (observado) ou 'mod' (modelado por GCM)
-#data_type = 'obs'
-
-# Chamada da função
-#get_trend(var=var, sites_list=sites, alpha_value=alpha, group=group_name, data_type=data_type, plot_graphs=True)
-
-
-
-
-
-
-
-
+    plt.tight_layout()  # Ajusta o layout para evitar sobreposição dos subplots
+    plt.show()
