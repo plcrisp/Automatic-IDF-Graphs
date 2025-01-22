@@ -1518,8 +1518,8 @@ def plot_optimized_subdaily(name_file, max_hour):
 #df_inmet_daily = read_csv('inmet', 'daily')
 #df_maplu = read_csv('maplu', 'min')
 
-df = set_date(read_csv('inmet', 'daily'))
-df2 = fill_missing_data('inmet', 'daily')
+#df = set_date(read_csv('inmet', 'daily'))
+#df2 = fill_missing_data('inmet', 'daily')
 
 
 # Valor de ajuste para os fatores
