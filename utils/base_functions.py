@@ -337,50 +337,6 @@ def multiple_linear_regression(left_df, right_df1, right_df2):
     print('R-Squared:', lr.score(X, y))
     print('Coefficients:', lr.coef_, 'Intercept:', lr.intercept_)
     
-    
-
-def trend_analysis(data, alpha_value, plot_graphs=True, site=''):
-    """
-    Realiza uma análise de tendência em uma série temporal de dados de precipitação
-    utilizando múltiplos testes de Mann-Kendall.
-
-    Parâmetros:
-    data (pd.Series): Série temporal de dados a serem analisados.
-    alpha_value (float): Nível de significância para os testes.
-    plot_graphs (bool): Se True, plota os gráficos da análise (padrão: True).
-    site (str): Nome do local, usado no título do gráfico (padrão: '').
-
-    Retorna:
-    None: Exibe os resultados dos testes e gráficos, se solicitado.
-    """
-    # Executa os testes de tendência
-    
-    if isinstance(data, pd.DataFrame):
-        data = data['Precipitation'].dropna()
-    
-    tests = {
-        'Original': mk.original_test(data, alpha=alpha_value),
-        'Hamed-Rao': mk.hamed_rao_modification_test(data, alpha=alpha_value),
-        'Yue-Wang': mk.yue_wang_modification_test(data, alpha=alpha_value),
-        'Trend-Free': mk.trend_free_pre_whitening_modification_test(data, alpha=alpha_value),
-        'Pre-Whitening': mk.pre_whitening_modification_test(data, alpha=alpha_value)
-    }
-
-    # Imprime os resultados dos testes
-    for name, result in tests.items():
-        print(f'{name}: {result}')
-
-    # Plota os gráficos se solicitado
-    if plot_graphs:
-        trend_line = np.arange(len(data)) * tests['Yue-Wang'].slope + tests['Yue-Wang'].intercept
-        plt.figure(figsize=(6, 4))
-        plt.plot(data, label='Data')
-        plt.plot(data.index, trend_line, label='Trend Line', color='red')
-        plt.xlabel('Months')
-        plt.ylabel('Precipitation (mm)')
-        plt.title(f'Trend Analysis for {site}')
-        plt.legend()
-        plt.show()
 
 
 
@@ -564,37 +520,8 @@ def calculate_p90(data):
     return p90_value
     
     
-
-def distribution_plot_df(df):
-    """
-    Gera um gráfico de densidade dos dados de precipitação 
-    a partir de um DataFrame.
-
-    Parâmetros:
-    df (DataFrame): Um DataFrame contendo uma coluna 'Precipitation' 
-                    com os dados de precipitação.
-
-    Retorna:
-    None: Exibe o gráfico de densidade.
-    """
     
-    # Remove valores ausentes da coluna 'Precipitation'
-    df = df.dropna(subset=['Precipitation'])
-    
-    # Gera o gráfico de densidade
-    sns.kdeplot(df['Precipitation'], color='skyblue', fill=True)
-    
-    # Configurações do gráfico
-    plt.title('Distribuição de Precipitação')
-    plt.xlabel('Precipitação (mm)')
-    plt.ylabel('Densidade')
-    
-    # Exibe o gráfico
-    plt.show()
-    
-    
-    
-def aggregate_precipitation(df, interval, dt_min=None):
+def aggregate_precipitation(df, interval, dt_min=False):
     """
     Agrega os dados de precipitação em intervalos especificados.
 
@@ -603,7 +530,7 @@ def aggregate_precipitation(df, interval, dt_min=None):
                     com os dados de precipitação, indexados por tempo.
     interval (int): O intervalo de agregação desejado:
                     - Se `dt_min` for None, considera 'interval' em horas.
-                    - Se `dt_min` for um valor conhecido, considera 'interval' em minutos.
+                    - Se `dt_min` for True, considera 'interval' em minutos.
     dt_min (int, opcional): A resolução temporal dos dados em minutos. 
                             Necessário se 'interval' for em minutos.
 
@@ -622,7 +549,7 @@ def aggregate_precipitation(df, interval, dt_min=None):
     # Lista para armazenar os resultados acumulados
     acum_list = []
 
-    if dt_min is None:
+    if not dt_min:
         # Caso padrão: agregação em horas
         n = interval  # Intervalo em horas
         for i in range(len(df) - n + 1):
@@ -642,65 +569,26 @@ def aggregate_precipitation(df, interval, dt_min=None):
 
 
 
-def get_subdaily_max(df, hours):
-    """
-    Calcula o valor máximo de precipitação acumulada em intervalos subdiários 
-    para cada ano presente em um DataFrame.
 
-    Parâmetros:
-    df (DataFrame): Um DataFrame que deve conter, pelo menos, uma coluna 'Year' 
-                    e dados de precipitação em uma coluna separada.
-    hours (int): O intervalo de horas para a agregação da precipitação.
-
-    Retorna:
-    DataFrame: Um DataFrame contendo os anos e os respectivos máximos de 
-               precipitação acumulada em intervalos de 'hours'.
-    """
-    
-    # Obtém a lista de anos únicos do DataFrame
-    years_list = df['Year'].unique()
-    
-    # Inicializa a lista para armazenar os máximos subdiários
-    max_subdaily_list = []
-    
-    # Itera sobre cada ano e calcula o máximo de precipitação acumulada
-    for year in years_list:
-        # Filtra os dados para o ano atual
-        df_new = df[df['Year'] == year]
-        
-        # Agrega a precipitação em intervalos subdiários e armazena o máximo
-        max_subdaily = max(aggregate_precipitation(df_new, hours))
-        
-        # Adiciona o máximo encontrado à lista
-        max_subdaily_list.append(max_subdaily)
-    
-    # Cria um DataFrame resultante com os anos e os máximos correspondentes
-    df_result = pd.DataFrame({
-        'Year': years_list,
-        f'Max_{hours}h': max_subdaily_list  # Usando f-string para formatação
-    })
-    
-    return df_result
-
-
-
-def get_subdaily_extremes(df, interval, dt_min=None):
+def get_subdaily_extremes(df, interval, dt_min=False, return_max_only=True):
     """
     Calcula os valores máximos e mínimos de precipitação acumulada em intervalos 
-    especificados para cada ano presente em um DataFrame.
+    especificados para cada ano presente em um DataFrame. Se return_max_only for True, 
+    retorna apenas os máximos.
 
     Parâmetros:
     df (DataFrame): Um DataFrame que deve conter, pelo menos, uma coluna 'Year' 
                     e dados de precipitação em uma coluna separada.
     interval (int): O intervalo de agregação desejado:
-                    - Se 'dt_min' for None, considera 'interval' em horas (para máximos).
-                    - Se 'dt_min' for um valor conhecido, considera 'interval' em minutos (para máximos e mínimos).
+                    - Se 'dt_min' for False, considera 'interval' em horas (para máximos).
+                    - Se 'dt_min' for True, considera 'interval' em minutos (para máximos e mínimos).
     dt_min (int, opcional): A resolução temporal dos dados em minutos. 
                             Necessário se 'interval' for em minutos.
+    return_max_only (bool, opcional): Se True, retorna apenas os máximos. O padrão é True.
 
     Retorna:
-    DataFrame: Um DataFrame contendo os anos, os máximos e mínimos de 
-               precipitação acumulada.
+    DataFrame: Um DataFrame contendo os anos e, dependendo do parâmetro, 
+               os máximos e mínimos ou apenas os máximos de precipitação acumulada.
     """
     
     # Obtém a lista de anos únicos do DataFrame
@@ -716,7 +604,7 @@ def get_subdaily_extremes(df, interval, dt_min=None):
         df_new = df[df['Year'] == year]
         
         # Agrega a precipitação em intervalos subdiários
-        if dt_min is None:
+        if not dt_min:
             subdaily_list = aggregate_precipitation(df_new, interval)
         else:
             subdaily_list = aggregate_precipitation(df_new, interval, dt_min)
@@ -725,18 +613,24 @@ def get_subdaily_extremes(df, interval, dt_min=None):
         max_subdaily_list.append(max(subdaily_list))
         min_subdaily_list.append(min(subdaily_list))
 
-    # Cria um DataFrame resultante com os anos e os extremos correspondentes
-    df_result = pd.DataFrame({
-        'Year': years_list,
-        f'Max_{interval}{"h" if dt_min is None else "min"}': max_subdaily_list,  # Máximos
-        f'Min_{interval}{"h" if dt_min is None else "min"}': min_subdaily_list   # Mínimos
-    })
+    # Cria um DataFrame resultante com os anos
+    if return_max_only:
+        df_result = pd.DataFrame({
+            'Year': years_list,
+            f'Max_{interval}{"h" if dt_min is None else "min"}': max_subdaily_list  # Apenas máximos
+        })
+    else:
+        df_result = pd.DataFrame({
+            'Year': years_list,
+            f'Max_{interval}{"h" if dt_min is None else "min"}': max_subdaily_list,  # Máximos
+            f'Min_{interval}{"h" if dt_min is None else "min"}': min_subdaily_list   # Mínimos
+        })
 
     return df_result
 
 
 
-def get_max_subdaily_table(name_file, directory='Results', dt_min=None):
+def get_max_subdaily_table(name_file, directory='Results', dt_min=False):
     """
     Calcula os máximos de precipitação acumulada em intervalos subdiários 
     e salva os resultados em um arquivo CSV. O cálculo pode ser realizado 
@@ -753,7 +647,7 @@ def get_max_subdaily_table(name_file, directory='Results', dt_min=None):
     print('Getting maximum subdaily...')
     
     # Lê o arquivo CSV contendo dados
-    if dt_min is None:
+    if not dt_min:
         df = pd.read_csv(f'{directory}/{name_file}_hourly.csv')
         # Lista dos intervalos em horas
         intervals = [1, 3, 6, 8, 10, 12, 24]
@@ -767,11 +661,11 @@ def get_max_subdaily_table(name_file, directory='Results', dt_min=None):
 
     # Calcula e mescla os máximos para cada intervalo
     for interval in intervals:
-        if dt_min is None:
-            max_subdaily = get_subdaily_max(df, interval)
+        if not dt_min:
+            max_subdaily = get_subdaily_extremes(df, interval)
             print(f'{interval}h done!')
         else:
-            max_subdaily = get_subdaily_max(df, interval, dt_min)
+            max_subdaily = get_subdaily_extremes(df, interval, dt_min)
             print(f'{interval}min done!')
         
         # Mescla os resultados no DataFrame final
@@ -781,7 +675,7 @@ def get_max_subdaily_table(name_file, directory='Results', dt_min=None):
     print('\n', df_final, '\n')
 
     # Salva o DataFrame final em um arquivo CSV
-    if dt_min is None:
+    if not dt_min:
         df_final.to_csv(f'{directory}/max_subdaily_{name_file}.csv', index=False)
     else:
         df_final.to_csv(f'{directory}/max_subdaily_min_{name_file}.csv', index=False)
@@ -816,57 +710,16 @@ def merge_max_tables(name_file, directory='Results'):
     
     print('Merge completo! Arquivo salvo em:', f'{directory}/max_subdaily_complete_{name_file}.csv')
     
+    
+    
 
-def max_annual_precipitation(df, name_file, output_dir='Results'):
-    """
-    Calcula o valor máximo de precipitação anual para cada ano e remove os outliers com base no método de intervalo interquartílico (IQR).
-    Em seguida, salva o resultado em um arquivo CSV no diretório especificado.
-
-    Parâmetros:
-    - df (DataFrame): DataFrame com uma coluna 'Year' para os anos e uma coluna 'Precipitation' com os valores de precipitação.
-    - output_dir (str): Diretório onde o arquivo CSV será salvo. Padrão é 'Results'.
-    - output_file (str): Nome do arquivo CSV para salvar o resultado. Padrão é 'max_annual_precipitation_no_outliers.csv'.
-
-    Retorna:
-    - DataFrame com os valores máximos de precipitação anual, excluindo outliers.
-    """
-    # Remover linhas com valores nulos
-    df = df.dropna()
-    
-    # Agrupar por ano e calcular o valor máximo de precipitação anual
-    df_new = df.groupby(['Year'])['Precipitation'].max().reset_index()
-    
-    # Calcular quartis e intervalo interquartílico (IQR) para remoção de outliers
-    q1 = df_new['Precipitation'].quantile(0.25)
-    q3 = df_new['Precipitation'].quantile(0.75)
-    IQR = q3 - q1
-    L0 = IQR * 1.5
-    L_low = q1 - L0
-    L_high = q3 + L0
-    
-    # Filtrar dados para remover outliers
-    df_new = df_new[(df_new['Precipitation'] > L_low) & (df_new['Precipitation'] < L_high)]
-    
-    # Garantir que o diretório de saída exista
-    os.makedirs(output_dir, exist_ok=True)
-    
-    # Caminho completo do arquivo
-    output_path = os.path.join(output_dir, f'max_daily_{name_file}.csv')
-    
-    # Salvar o resultado em um arquivo CSV
-    df_new.to_csv(output_path, index=False)
-    
-    print(f"Arquivo salvo em: {output_path}")
-    return df_new
-
-
-
-def remove_outliers_from_max(df):
+def remove_outliers_from_max(df, duration=0):
     """
     Remove outliers da coluna 'Precipitation' de um DataFrame, sem agrupar os dados.
 
     Args:
         df (pd.DataFrame): DataFrame com coluna 'Precipitation'.
+        duration (int, optional): Duração usada para renomear a coluna (padrão: 0, sem renomeação).
 
     Returns:
         pd.DataFrame: DataFrame filtrado sem outliers na coluna 'Precipitation'.
@@ -885,7 +738,49 @@ def remove_outliers_from_max(df):
     df_filtered = df_no_na[(df_no_na['Precipitation'] > lower_bound) & 
                            (df_no_na['Precipitation'] < upper_bound)]
     
+    # Caso uma duração seja passada, renomeia a coluna
+    if duration != 0:
+        df_filtered.columns = ['Max_{dur}'.format(dur=duration)]
+    
     return df_filtered
+
+
+
+
+def max_annual_precipitation(df, name_file, output_dir='Results'):
+    """
+    Calcula o valor máximo de precipitação anual para cada ano e remove os outliers.
+    Em seguida, salva o resultado em um arquivo CSV no diretório especificado.
+
+    Parâmetros:
+    - df (DataFrame): DataFrame com colunas 'Year' e 'Precipitation'.
+    - name_file (str): Nome base do arquivo de saída.
+    - output_dir (str): Diretório onde o arquivo CSV será salvo (padrão: 'Results').
+
+    Retorna:
+    - DataFrame com os valores máximos de precipitação anual, excluindo outliers.
+    """
+    # Remover linhas com valores nulos
+    df = df.dropna()
+    
+    # Agrupar por ano e calcular o valor máximo de precipitação anual
+    df_new = df.groupby(['Year'])['Precipitation'].max().reset_index()
+    
+    # Remover outliers usando a função auxiliar
+    df_new = remove_outliers_from_max(df_new)
+    
+    # Garantir que o diretório de saída exista
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # Caminho completo do arquivo
+    output_path = os.path.join(output_dir, f'max_daily_{name_file}.csv')
+    
+    # Salvar o resultado em um arquivo CSV
+    df_new.to_csv(output_path, index=False)
+    
+    print(f"Arquivo salvo em: {output_path}")
+    return df_new
+
 
  
 
@@ -1185,45 +1080,6 @@ def plot_subdaily_maximum_BL(max_hour):
     plt.xticks(rotation=50)
     plt.savefig(f'Graphs/subdaily_bl/BL_max{max_hour}_relative.png')
     print(f'Gráfico das diferenças Max_{max_hour}h gerado com sucesso!\n')
-    
-
-
-def get_subdaily_optimized(name_file):
-    """
-    Calculate subdaily maximum precipitation values from daily data using CETESB disaggregation factors.
-
-    Parameters:
-    - name_file (str): The name of the daily data file without extension (used to read and save CSV files).
-    
-    The function reads daily maximum precipitation data, applies disaggregation factors for 
-    different time intervals, and saves the resulting subdaily maximum precipitation values 
-    to a new CSV file.
-    """
-    
-    # Read disaggregation factors from CSV
-    df_disagreg_factors = pd.read_csv('fatores_desagregacao.csv')
-    
-    # Read daily maximum precipitation data
-    df_aut = pd.read_csv(f'Results/max_daily_{name_file}.csv')
-
-    # Create a copy of the daily precipitation DataFrame to store subdaily calculations
-    df_subdaily = df_aut.copy()
-
-    # Define the time intervals (in minutes) for which we will calculate subdaily maximums
-    time_intervals = [5, 10, 15, 20, 25, 30, 60, 360, 480, 600, 720, 1440]  # minutes
-    adjustments = [0, 0, 0, 0, 0, 0, 0.05, -0.05, -0.1, -0.1, -0.1, -0.01]  # adjustments for specific intervals
-
-    # Calculate maximum precipitation for each interval
-    for i, interval in enumerate(time_intervals):
-        # Calculate maximum subdaily value using the corresponding disaggregation factor
-        factor = df_disagreg_factors['CETESB_ger'][i]
-        adjustment = 1 + adjustments[i] if adjustments[i] > 0 else 1 + adjustments[i]
-        
-        # Store the calculated maximum subdaily value in the DataFrame
-        df_subdaily[f'Max_{interval}min'] = df_subdaily['Precipitation'] * factor * adjustment
-
-    # Save the resulting subdaily maximums to a new CSV file
-    df_subdaily.to_csv(f'Results/max_subdaily_{name_file}_otimizado.csv', index=False)
     
 
 
