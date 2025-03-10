@@ -40,8 +40,7 @@ def process_data(source: DataSource, data_path, year_start=None, year_end=None):
 
 
     Retornos:
-        - Se source for 'CEMADEN': Retorna três DataFrames correspondentes aos sites:
-          (DataFrame Jd_Sao_Paulo, DataFrame Cidade_Jardim, DataFrame Agua_Vermelha).
+        - Se source for 'CEMADEN': Retorna um dicionário de DataFrames separados por Site.
         - Se source for 'INMET' ou 'INMET_DAILY': Retorna dois DataFrames
           (DataFrame aut, DataFrame conv).
         - Se source for 'MAPLU': Retorna dois DataFrames
@@ -49,7 +48,7 @@ def process_data(source: DataSource, data_path, year_start=None, year_end=None):
         - Se source for 'MAPLU_USP': Retorna um DataFrame (DataFrame USP).
 
     Exemplo de uso:
-        df1, df2 = process_data('INMET', 'datasets/')
+        df1, df2 = process_data('INMET', '../datasets')
     """
 
     if source == DataSource.CEMADEN:
@@ -67,18 +66,13 @@ def process_data(source: DataSource, data_path, year_start=None, year_end=None):
         )
 
         # Renomeia as colunas e seleciona as relevantes
-        CEMADEN_df.columns = ['1', '2', '3', '4', '5', '6', '7', '8']
-        CEMADEN_df = CEMADEN_df[['5', '6', '7']]
+        CEMADEN_df.columns = ['1', '2', '3', '4', '5', '6', '7','8'] # a primeira coluna é desconsiderada, por isso os números estão deslocados em 1
+        CEMADEN_df = CEMADEN_df[['3', '6', '7']]
         CEMADEN_df.columns = ['Site', 'Date', 'Precipitation']
+        
 
-        # Substitui vírgulas por pontos nas precipitações e renomeia locais
+        # Substitui vírgulas por pontos nas precipitações
         CEMADEN_df['Precipitation'] = CEMADEN_df['Precipitation'].str.replace(',', '.')
-        site_replacements = {
-            '-22,031': 'Jd_Sao_Paulo',
-            '-21,997': 'Cidade_Jardim',
-            '-21,898': 'Agua_Vermelha'
-        }
-        CEMADEN_df['Site'] = CEMADEN_df['Site'].replace(site_replacements)
 
         # Divide a coluna Date em Year, Month, Day, Hour
         CEMADEN_df[['Year', 'Month', 'Day_hour']] = CEMADEN_df.Date.str.split("-", expand=True)
@@ -87,16 +81,15 @@ def process_data(source: DataSource, data_path, year_start=None, year_end=None):
 
         # Seleciona as colunas relevantes para o DataFrame final
         CEMADEN_df = CEMADEN_df[['Site', 'Year', 'Month', 'Day', 'Hour', 'Precipitation']]
+        
 
         # Converte as colunas especificadas para numérico
         CEMADEN_df = convert_to_numeric(CEMADEN_df, ['Year', 'Month', 'Day', 'Hour', 'Precipitation'])
 
-        # Filtra os DataFrames por site
-        jd_sp = CEMADEN_df[CEMADEN_df['Site'] == 'Jd_Sao_Paulo']
-        cidade_jardim = CEMADEN_df[CEMADEN_df['Site'] == 'Cidade_Jardim']
-        agua_vermelha = CEMADEN_df[CEMADEN_df['Site'] == 'Agua_Vermelha']
+        # Criar um dicionário de DataFrames separados por Site
+        site_dfs = {site: CEMADEN_df[CEMADEN_df['Site'] == site] for site in CEMADEN_df['Site'].unique()}
 
-        return jd_sp, cidade_jardim, agua_vermelha
+        return site_dfs
 
     elif source in {DataSource.INMET, DataSource.INMET_DAILY}:
         print(f"Processando dados do {source}...")
@@ -112,12 +105,12 @@ def process_data(source: DataSource, data_path, year_start=None, year_end=None):
 
         if source == DataSource.INMET:
             # Processa os dados de estações automáticas e convencionais
-            aut_df = process_inmet_data(f'{data_path}/INMET/data_aut_8h.csv')
-            conv_df = process_inmet_data(f'{data_path}/INMET/data_conv_8h.csv')
+            aut_df = process_inmet_data(f'{data_path}/INMET_8H/data_aut_8h.csv')
+            conv_df = process_inmet_data(f'{data_path}/INMET_8H/data_conv_8h.csv')
         else:  # INMET_DAILY
             # Processa os dados diários de estações automáticas e convencionais
-            aut_df = process_inmet_data(f'{data_path}/INMET/data_aut_daily.csv')
-            conv_df = process_inmet_data(f'{data_path}/INMET/data_conv_daily.csv')
+            aut_df = process_inmet_data(f'{data_path}/INMET_DAILY/data_aut_daily.csv')
+            conv_df = process_inmet_data(f'{data_path}/INMET_DAILY/data_conv_daily.csv')
 
         return aut_df, conv_df
 
@@ -158,4 +151,3 @@ def process_data(source: DataSource, data_path, year_start=None, year_end=None):
     
     else:
         raise ValueError(f"Fonte '{source}' não suportada.")
-

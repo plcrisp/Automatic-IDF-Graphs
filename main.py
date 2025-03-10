@@ -1,6 +1,6 @@
-from utils.processing_datasets import *
-from utils.base_functions import *
-from utils.get_distribution import *
+from utils.data_processing import aggregate_to_csv
+from utils.get_datasets import process_data, DataSource
+from utils.quality_analysis import process_precipitation_series
 import sys
 
 def main():
