@@ -1,3 +1,10 @@
+"""
+Este script realiza a verificação e o processamento de séries temporais de dados meteorológicos.
+Inclui funções para verificar a integridade da série temporal, criar uma coluna de data como índice,
+preencher valores ausentes por interpolação sazonal e remover outliers usando o método do IQR.
+Utiliza a biblioteca Pandas para manipulação de dados e uma biblioteca auxiliar para leitura de CSV.
+"""
+
 import pandas as pd
 from datetime import date
 from utils.data_processing import *

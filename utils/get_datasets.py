@@ -1,3 +1,10 @@
+"""
+Este script processa dados meteorológicos de diferentes fontes (CEMADEN, INMET).
+Ele carrega arquivos CSV, padroniza colunas, converte tipos de dados e organiza as informações em DataFrames.
+Dependendo da fonte selecionada, a função process_data retorna os dados formatados adequadamente para análise.
+A manipulação dos dados é feita com pandas, e a gestão dos arquivos utiliza pathlib.
+"""
+
 import pandas as pd
 from enum import Enum
 from pathlib import Path

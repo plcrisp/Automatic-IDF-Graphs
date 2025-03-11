@@ -1,3 +1,19 @@
+"""
+Este script realiza o processamento e análise de dados de precipitação.
+
+Funcionalidades principais:
+- Agregação dos dados em diferentes escalas temporais (anual, mensal, diária e horária).
+- Salvamento dos dados agregados em arquivos CSV.
+- Leitura dos arquivos CSV gerados.
+- Visualização da distribuição dos dados de precipitação através de um gráfico de densidade.
+
+Bibliotecas utilizadas:
+- pandas: Manipulação de dados
+- os: Gerenciamento de arquivos e diretórios
+- matplotlib.pyplot: Visualização de gráficos
+- seaborn: Gráficos estatísticos
+"""
+
 import pandas as pd
 import os
 import matplotlib.pyplot as plt

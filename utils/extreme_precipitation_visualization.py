@@ -1,3 +1,11 @@
+"""
+Este script carrega dados de precipitação de arquivos CSV, processa máximas subdiárias 
+para diferentes períodos e gera gráficos para visualização. Ele calcula estatísticas como 
+máximos absolutos, diferenças relativas e distribuições ao longo do tempo, permitindo 
+comparações entre diferentes períodos de dados pluviométricos e diferentes referências,
+CETESB, CETESB otimizado e o método Bartlett-Lewis.
+"""
+
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt

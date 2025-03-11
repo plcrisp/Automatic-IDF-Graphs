@@ -1,3 +1,23 @@
+"""
+Este script realiza análises estatísticas e de tendência em dados de precipitação. Ele inclui:
+
+1. **Correlação de Pearson**:
+   - Mede a relação entre séries de precipitação de diferentes fontes.
+   - Retorna a matriz de correlação e os p-valores para avaliar a significância estatística.
+   - Gera gráficos de dispersão para visualizar relações entre conjuntos de dados.
+
+2. **Análise de Tendência com Mann-Kendall**:
+   - Aplica diferentes variações do teste de Mann-Kendall para identificar tendências em séries temporais de precipitação.
+   - Calcula estatísticas como Tau de Kendall, p-valor e Sen’s Slope.
+   - Plota gráficos de tendência e salva os resultados em arquivos CSV.
+
+3. **Cálculo de dupla massa**:
+   - Realiza junção de séries temporais de precipitação por data.
+   - Lida com valores ausentes e faz verificações básicas de consistência.
+
+O código utiliza bibliotecas como `pandas`, `seaborn`, `matplotlib`, `scipy.stats`, e `pymannkendall` para análise estatística e visualização de dados.
+"""
+
 from scipy.stats import pearsonr
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -5,6 +25,14 @@ import pandas as pd
 import pymannkendall as mk
 from utils.error_correction import verification, fill_missing_data
 from utils.data_processing import read_csv
+
+
+"""
+--------------------------------------------------------------------------------------------------------------
+------------------------------------- FUNÇÕES PARA CORRELACIONAR DATAFRAMES ----------------------------------
+--------------------------------------------------------------------------------------------------------------
+"""
+
 
 def pearsonr_pval(x, y):
     """
@@ -85,6 +113,13 @@ def correlation_plots(*dfs):
     
     return corr_pearson, pvalues_pearson
 
+
+
+"""
+--------------------------------------------------------------------------------------------------------------
+--------------------------------- FUNÇÕES PARA ANÁLISE DE TENDÊNCIA EM PRECIPITAÇÃO --------------------------
+--------------------------------------------------------------------------------------------------------------
+"""
 
 
 def get_trend(var, sites_list, alpha_value, group, data_type='obs', plot_graphs=True):
@@ -233,6 +268,14 @@ def get_trend(var, sites_list, alpha_value, group, data_type='obs', plot_graphs=
     # Salva o DataFrame em um arquivo CSV
     df_trend_result.to_csv(output_path, index=False, encoding='latin1')
     
+
+
+"""
+--------------------------------------------------------------------------------------------------------------
+----------------------- FUNÇÃO PARA TESTE DE CONSISTÊNCIA DE DATAFRAMES DE PRECIPITAÇÃO ----------------------
+--------------------------------------------------------------------------------------------------------------
+"""
+
 
 
 def process_precipitation_series(file_names, frequency):

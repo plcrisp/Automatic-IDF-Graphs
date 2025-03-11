@@ -1,9 +1,33 @@
+"""
+Este script é uma ferramenta completa para análise de precipitação extrema, com foco em cálculos estatísticos e análise de extremos subdiários.  
+As funções estão organizadas em duas categorias principais:
+
+1. Cálculo Estatístico de Extremos:
+   - calculate_p90: Calcula o percentil de 90% (P90) para valores de precipitação e gera o gráfico da probabilidade acumulada de não excedência.
+   - max_annual_precipitation: Determina a precipitação máxima anual, remove outliers e salva os resultados em CSV.
+
+2. Análise de Dados Subdiários:
+   - get_subdaily_extremes: Calcula os valores máximos e mínimos de precipitação acumulada em intervalos horários ou de minutos para cada ano.
+   - get_max_subdaily_table: Gera tabelas com os máximos subdiários para múltiplos intervalos e salva os resultados.
+   - merge_max_tables: Mescla as tabelas de máximos de precipitação em diferentes intervalos (horas e minutos) em um único arquivo consolidado.
+
+Cada função já está preparada para tratamento de outliers, manipulação de diretórios e exportação automática para CSV, facilitando a análise climática.
+"""
+
 import pandas as pd
 import os
 import seaborn as sns
 import matplotlib.pyplot as plt
 from utils.error_correction import remove_outliers_from_max
 from utils.intervals_manipulation import aggregate_precipitation
+
+
+"""
+--------------------------------------------------------------------------------------------------------------
+----------------------------------------- CÁLCULO ESTATÍSTICO DE EXTREMOS ------------------------------------
+--------------------------------------------------------------------------------------------------------------
+"""
+
 
 def calculate_p90(data):
     """
@@ -72,6 +96,12 @@ def max_annual_precipitation(df, name_file, output_dir='Results'):
     return df_new
 
 
+
+"""
+--------------------------------------------------------------------------------------------------------------
+----------------------------------------- ANÁLISE DE DADOS SUBDIÁRIOS ----------------------------------------
+--------------------------------------------------------------------------------------------------------------
+"""
 
 
 def get_subdaily_extremes(df, interval, dt_min=False, return_max_only=True):

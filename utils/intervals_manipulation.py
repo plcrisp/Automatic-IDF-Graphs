@@ -1,3 +1,23 @@
+"""
+Este script contém funções para processamento e análise de dados de precipitação, incluindo agregação temporal e desagregação subdiária. As principais funcionalidades são:
+
+1. **Agregação de Precipitação (`aggregate_precipitation`)**:
+   - Soma os valores de precipitação em intervalos de tempo especificados.
+   - Permite agregação por horas ou minutos, dependendo da resolução dos dados.
+   - Remove valores ausentes para garantir cálculos consistentes.
+
+2. **Cálculo de Fatores de Desagregação (`get_disagregation_factors`)**:
+   - Lê um arquivo CSV contendo fatores de desagregação pré-definidos.
+   - Calcula variações dos fatores para cenários de aumento e redução baseados em um valor fornecido pelo usuário.
+
+3. **Cálculo de Precipitação Subdiária (`get_subdaily_from_disagregation_factors`)**:
+   - Aplica fatores de desagregação para estimar precipitação em diferentes intervalos subdiários.
+   - Suporta três tipos de desagregação: original, aumentada ('plus') e reduzida ('minus').
+   - Gera e salva um arquivo CSV com os valores desagregados para diferentes intervalos (de 5 minutos até 24 horas).
+
+Este código é útil para análise hidrológica, auxiliando na preparação de dados de precipitação para modelagem e estudos de variabilidade temporal.
+"""
+
 import pandas as pd
 
 def aggregate_precipitation(df, interval, dt_min=False):
