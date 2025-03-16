@@ -1,11 +1,83 @@
+"""
+Este script fornece um conjunto abrangente de funções para analisar dados de 
+precipitação (diários ou subdiários), ajustando distribuições estatísticas, 
+gerando visualizações e salvando os parâmetros das melhores distribuições ajustadas.
+
+Principais Funcionalidades:
+- Fluxo de Trabalho Unificado: Combina a análise de dados diários e subdiários de precipitação.
+- Ajuste de Distribuições: Ajusta automaticamente distribuições estatísticas comuns aos dados 
+  e avalia o ajuste usando o erro quadrático somado (SSE - Sum of Squared Errors).
+- Ferramentas de Visualização: Gera histogramas e funções de distribuição cumulativa (CDF) 
+  com legendas claras e paletas de cores distintas para melhor interpretabilidade.
+- Personalização: Permite ao usuário especificar o número de distribuições a serem analisadas 
+  e visualizadas, além do tipo de dado (diário ou subdiário).
+- Saída: Salva os parâmetros das melhores distribuições ajustadas em um arquivo CSV para uso 
+  posterior ou relatórios.
+
+Funções Principais:
+1. `get_distribution`:
+   - Ponto principal de entrada para análise de dados de precipitação.
+   - Lida com dados diários ou subdiários, ajusta distribuições, gera gráficos e salva resultados.
+   - Parâmetros:
+     - `name_file`: Nome base do arquivo de entrada (sem extensão).
+     - `duration`: Especifica a coluna de duração para dados subdiários (ex.: 'Max_1h', 'Max_6h').
+     - `disag_factor`: Fator usado no nome dos arquivos subdiários (ex.: '0.2', '0.3').
+     - `directory`: Diretório onde os arquivos de entrada/saída estão localizados (padrão: 'results').
+     - `n_distributions`: Número de melhores distribuições a serem analisadas e visualizadas (padrão: 3).
+
+2. `fit_data`:
+   - Ajusta distribuições estatísticas comuns aos dados e calcula o SSE para cada ajuste.
+   - Retorna um dicionário de resultados ordenado pelo SSE.
+
+3. `plot_histogram`:
+   - Plota um histograma dos dados observados e sobrepõe as PDFs das melhores distribuições ajustadas.
+   - Inclui títulos descritivos, rótulos dos eixos e legendas adaptadas para dados de precipitação.
+
+4. `plot_cdf_comparison`:
+   - Plota as funções de distribuição cumulativa (CDFs) das melhores distribuições ajustadas.
+   - Destaca visualmente o ajuste com cores distintas e legendas detalhadas.
+
+5. `get_top_fitted_distributions`:
+   - Extrai os parâmetros das melhores distribuições ajustadas e organiza-os em um DataFrame.
+   
+6. `calculate_bins`:
+   - Calcula o número ideal de bins para um histograma usando a fórmula de Doane.
+   
+7. `get_common_distributions`:
+   - Retorna uma lista de distribuições contínuas comuns do SciPy.
+
+Exemplo de Uso:
+---------------
+Para analisar dados diários de precipitação:
+    get_distribution(name_file='inmet_conv', n_distributions=3)
+
+Para analisar dados subdiários de precipitação (ex.: Max_6h):
+    get_distribution(
+        name_file='inmet_conv',
+        duration='Max_6h',
+        disag_factor=0.8,
+        directory='results',
+        n_distributions=5
+    )
+
+Dependências:
+--------------
+- Bibliotecas Python: pandas, numpy, scipy.stats, matplotlib, seaborn
+
+Notas Importantes:
+-------------------
+- Certifique-se de que os arquivos CSV de entrada sigam a estrutura esperada:
+  - Dados diários: Coluna chamada 'Precipitation'.
+  - Dados subdiários: Colunas nomeadas de acordo com a `duration` especificada (ex.: 'Max_1h', 'Max_6h').
+- Os arquivos de saída (CSV com parâmetros ajustados) são salvos no diretório especificado.
+"""
+
 import numpy as np
 import pandas as pd
 import scipy.stats as st
 import matplotlib.pyplot as plt
 import math
-import random
 import seaborn as sns
-
 
 
 
@@ -355,7 +427,7 @@ def get_distribution(name_file, n_distributions=3, duration=None, disag_factor=N
         name_file (str): Nome base do arquivo de dados (sem extensão).
         duration (str, optional): Duração do evento de precipitação (ex.: 'Max_1h', 'Max_24h'). 
                                   Se None, assume-se que os dados são diários.
-        disag_factor (float, optional): Fator de desagregação para nomear arquivos subdiários (ex.: '0.2', '0.3'). 
+        disag_factor (float, optional): Fator de desagregação para nomear arquivos subdiários (ex.: '_p0.2', '_m0.3'). 
                                        Ignorado se `duration` for None.
         directory (str): Diretório onde os arquivos estão localizados. Padrão é 'results'.
         n_distributions (int): Número de distribuições mais ajustadas a serem analisadas e exibidas. Padrão é 3.
