@@ -71,13 +71,15 @@ Module with auxiliary functions organized for handling and analyzing rainfall da
 
 - 🔧  *error_correction.py*: Ensures data quality by fixing dates, filling missing values, and removing outliers for clean, reliable data.
 
-- 📊 *quality_analysis.py*: Evaluates data quality through correlation, consistency, and trend tests to validate precipitation time series.
+- 🔬 *quality_analysis.py*: Evaluates data quality through correlation, consistency, and trend tests to validate precipitation time series.
 
 - ⏱️ *intervals_manipulation.py*: Manages aggregation and disaggregation of precipitation data for different time intervals, essential for sub-daily intensity calculations.
 
 - 🌧️ *extreme_precipitation_analysis.py*: Analyzes extreme precipitation events, calculating annual maxima and sub-daily extremes for easier analysis of intense rainfall.
 
 - 📈 *extreme_precipitation_visualization.py*: Generates visualizations for interpreting extreme precipitation events, with optimized graphs to reveal rainfall patterns.
+
+- 📊 *get_distribution.py*: analyze daily or sub-daily precipitation data by fitting statistical distributions, generating visualizations, and saving the parameters of the best-fitted distributions for further use.
 
 ## 📖 References
 
