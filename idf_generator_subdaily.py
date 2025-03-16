@@ -1,6 +1,6 @@
 import pandas as pd
 from base_functions import *
-from get_distribution import *
+from utils.get_distribution import *
 from scipy.optimize import minimize_scalar
 
 def get_theoretical_max_precipitations(name_file, duration, MY_DISTRIBUTIONS, return_period_list, dist, directory = 'Results', disag_factor = 'nan', plot_graph = False):
