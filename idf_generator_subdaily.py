@@ -1,3 +1,51 @@
+"""
+Este código implementa um conjunto de funções para gerar e analisar curvas IDF (Intensity-Duration-Frequency), 
+que são amplamente utilizadas em hidrologia para modelar a relação entre a intensidade, a duração e a frequência 
+de eventos de precipitação. O processo geral inclui os seguintes passos:
+
+1. **Cálculo das Precipitações Máximas Teóricas**:
+   - A função `calculate_theoretical_max_precipitations` ajusta distribuições estatísticas aos dados históricos 
+     de precipitação máxima subdiária para diferentes períodos de retorno. Ela calcula as precipitações máximas 
+     teóricas esperadas para cada período de retorno, utilizando a melhor distribuição ajustada.
+
+2. **Geração da Tabela IDF**:
+   - A função `calculate_idf_table` gera uma tabela IDF completa, contendo as intensidades de precipitação para 
+     diferentes combinações de duração e período de retorno. As intensidades são calculadas a partir das 
+     precipitações máximas teóricas, ajustando-se para a duração específica do evento.
+
+3. **Cálculo dos Parâmetros Baseados na Duração**:
+   - A função `calculate_duration_based_parameters` realiza ajustes lineares para modelar a relação entre a 
+     duração e a intensidade de precipitação para múltiplos períodos de retorno. Ela retorna parâmetros como o 
+     coeficiente angular (n) e o intercepto (ln_cte2), que descrevem como a intensidade diminui com o aumento da 
+     duração.
+
+4. **Otimização do Parâmetro t0**:
+   - A função `find_optimal_t0` encontra o valor ótimo da constante t0, que é usada para linearizar a relação 
+     entre duração e intensidade. Isso é feito minimizando a soma negativa dos coeficientes de determinação (R²) 
+     para múltiplos períodos de retorno.
+
+5. **Cálculo dos Parâmetros Baseados no Período de Retorno**:
+   - A função `calculate_return_period_based_parameters` modela a relação entre o período de retorno e a 
+     intensidade de precipitação, ajustando uma reta entre ln(RP) e ln(cte2). Ela retorna parâmetros como K 
+     (magnitude) e m (expoente), que descrevem como a intensidade aumenta com o período de retorno.
+
+6. **Obtenção dos Parâmetros Finais da Curva IDF**:
+   - A função `get_final_idf_params` coordena todas as etapas anteriores para calcular os parâmetros finais da 
+     curva IDF: t0, n, K e m. Esses parâmetros podem ser salvos em um arquivo CSV para uso posterior.
+
+O código utiliza métodos estatísticos avançados, como ajuste de distribuições e regressão linear, para garantir 
+que as curvas IDF sejam precisas e representativas dos dados observados. Ele também oferece flexibilidade para 
+trabalhar com diferentes fatores de desagregação e opções de salvamento de resultados.
+
+A saída final inclui os parâmetros necessários para expressar a relação IDF matematicamente, conforme abaixo:
+    i = (K * RP^m) / (d + t0)^n
+Onde:
+    - i: Intensidade de precipitação (mm/h).
+    - RP: Período de retorno (anos).
+    - d: Duração do evento de precipitação (minutos ou horas).
+    - K, m, n, t0: Parâmetros calculados pelo modelo.
+"""
+
 import pandas as pd
 import math
 import numpy as np
