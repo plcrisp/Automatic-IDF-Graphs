@@ -177,104 +177,209 @@ def calculate_idf_table(
     )
 
 
-def get_idf_for_fit(name_file, MY_DISTRIBUTIONS, dist, return_period_list, directory = 'Results', disag_factor = 'nan'):
-    if disag_factor == 'nan':   
-        duration_list_min = [60, 180, 360, 480, 600, 720, 1440]
-        duration_list = [1, 3, 6, 8, 10, 12, 24]
-    
-    else:
-        duration_list_min = [5, 10, 20, 30, 60, 360, 480, 600, 720, 1440]
-        duration_list = ['5min', '10min', '20min', '30min', '1', '6', '8', '10', '12', '24']
 
-    P_RP_ = []
-    
-    for duration in duration_list:
-        P_ = get_precipitation_byRP(name_file, duration, MY_DISTRIBUTIONS, dist, return_period_list, directory, disag_factor)
-        P_RP_.append(P_)
-    
-    i_RP_ = [P*60/d for P, d in zip(P_RP_, duration_list_min)] 
-    ln_i_RP_ = [np.log(i) for i in i_RP_]
-    
-    return duration_list_min, ln_i_RP_
+def calculate_duration_based_parameters(t0, name_file, return_periods, directory='results', disag_factor='nan'):
+    """
+    Calcula os parâmetros da curva IDF linearizada, modelando a relação entre duração e 
+    intensidade de precipitação para múltiplos períodos de retorno.
+
+    Parâmetros:
+        t0 (float): Constante usada na linearização da curva IDF.
+        name_file (str): Nome do arquivo base contendo os dados de precipitação.
+        return_periods (list): Lista de períodos de retorno (em anos) para cálculo das precipitações máximas.
+        directory (str, opcional): Diretório onde os arquivos CSV estão armazenados. Padrão: 'Results'.
+        disag_factor (str, opcional): Fator de desagregação usado para ajustar os dados. Padrão: 'nan'.
+
+    Retorna:
+        dict: Um dicionário contendo os resultados para cada período de retorno. As chaves são os 
+              períodos de retorno (em anos), e os valores são tuplas com os seguintes elementos:
+              
+              - r_sq (float): Coeficiente de determinação (R²) do ajuste linear. Mede a qualidade do 
+                              ajuste entre ln(d + t0) e ln(i), onde:
+                                - d: Duração do evento de precipitação (minutos ou horas).
+                                - i: Intensidade de precipitação (mm/h).
+                              Valores próximos de 1 indicam um bom ajuste.
+              
+              - ln_cte2 (float): Logaritmo natural do intercepto do ajuste linear. Está relacionado à 
+                                 magnitude das intensidades de precipitação para o período de retorno 
+                                 considerado. Pode ser convertido para cte2 usando: cte2 = exp(ln_cte2).
+              
+              - n (float): Coeficiente angular do ajuste linear. Descreve como a intensidade de 
+                           precipitação diminui com o aumento da duração. Quanto maior o valor de n, 
+                           mais rapidamente a intensidade diminui à medida que a duração aumenta.
+                           Tipicamente, n está na faixa de 0.5 a 1.0.
+    """
+    # Chama calculate_idf_table para obter os dados
+    duration_list_min, *ln_i_RP_lists = calculate_idf_table(
+        file_name=name_file,
+        directory=directory,
+        disag_factor=disag_factor,
+        save_table=False
+    )
+
+    # Dicionário para armazenar os resultados
+    results = {}
+
+    # Itera sobre os períodos de retorno
+    for rp in return_periods:
+        rp_index = [2, 5, 10, 25, 50, 100].index(rp)  # Índice do período de retorno
+        ln_i_RP_ = ln_i_RP_lists[rp_index]
+
+        # Calcula ln(d + t0) para cada duração
+        ln_cte_list = [np.log(t0 + d) for d in duration_list_min]  # cte = ln(d + t0)
+
+        # Realiza o ajuste linear
+        x = np.array(ln_cte_list).reshape((-1, 1))
+        y = np.array(ln_i_RP_)
+        model = LinearRegression().fit(x, y)
+        r_sq = model.score(x, y)
+        ln_cte2 = model.intercept_
+        n = model.coef_[0]
+
+        # Armazena os resultados no dicionário
+        results[rp] = (r_sq, ln_cte2, n)
+
+    return results
 
 
-def get_idf_params1(t0, name_file, MY_DISTRIBUTIONS, dist, return_period_list, directory = 'Results', disag_factor = 'nan'):
-    duration, ln_i_RP_ = get_idf_for_fit(name_file, MY_DISTRIBUTIONS, dist, return_period_list, directory, disag_factor)
-    
-    ln_cte_list = [np.log(t0+d) for d in duration] #cte = ln(d * t0) (for IDF linearization)
-    
-    x = np.array(ln_cte_list).reshape((-1, 1))
-    y = np.array(ln_i_RP_)
-    model = LinearRegression().fit(x, y)
-    r_sq = model.score(x, y)
-    ln_cte2 = model.intercept_
-    n = model.coef_[0] 
-    return r_sq, ln_cte2, n
 
-def min_sum_r_sq(t0):
-    r_sq_2 = get_idf_params1(t0, name_file, MY_DISTRIBUTIONS, dist, [2.0], directory, disag_factor)[0]
-    r_sq_5 = get_idf_params1(t0, name_file, MY_DISTRIBUTIONS, dist, [5.0], directory, disag_factor)[0]
-    r_sq_10 = get_idf_params1(t0, name_file, MY_DISTRIBUTIONS, dist, [10.0], directory, disag_factor)[0]
-    r_sq_25 = get_idf_params1(t0, name_file, MY_DISTRIBUTIONS, dist, [25.0], directory, disag_factor)[0]
-    r_sq_50 = get_idf_params1(t0, name_file, MY_DISTRIBUTIONS, dist, [50.0], directory, disag_factor)[0]
-    r_sq_100 = get_idf_params1(t0, name_file, MY_DISTRIBUTIONS, dist, [100.0], directory, disag_factor)[0]
-    
-    sum = r_sq_2 + r_sq_5 + r_sq_10 + r_sq_25 + r_sq_50 + r_sq_100
-    return -sum
+def find_optimal_t0(name_file, return_periods, directory='results', disag_factor='nan'):
+    """
+    Encontra o valor ótimo de t0 minimizando a soma negativa dos R² para múltiplos períodos de retorno.
 
-def get_t0(name_file, MY_DISTRIBUTIONS, dist, directory, disag_factor):
-    res = minimize_scalar(min_sum_r_sq)
-    return res.x
+    Parâmetros:
+        name_file (str): Nome do arquivo base contendo os dados de precipitação.
+        return_periods (list): Lista de períodos de retorno (em anos) para cálculo das precipitações máximas.
+        directory (str, opcional): Diretório onde os arquivos CSV estão armazenados. Padrão: 'Results'.
+        disag_factor (str, opcional): Fator de desagregação usado para ajustar os dados. Padrão: 'nan'.
 
-def get_idf_params2(t0, name_file, MY_DISTRIBUTIONS, dist, directory = 'Results', disag_factor = 'nan'):
-    ln_cte2_list = []
-    ln_cte2_2 = get_idf_params1(t0, name_file, MY_DISTRIBUTIONS, dist, [2.0], directory, disag_factor)[1]
-    ln_cte2_list.append(ln_cte2_2)
-    ln_cte2_5 = get_idf_params1(t0, name_file, MY_DISTRIBUTIONS, dist, [5.0], directory, disag_factor)[1]
-    ln_cte2_list.append(ln_cte2_5)
-    ln_cte2_10 = get_idf_params1(t0, name_file, MY_DISTRIBUTIONS, dist, [10.0], directory, disag_factor)[1]
-    ln_cte2_list.append(ln_cte2_10)
-    ln_cte2_25 = get_idf_params1(t0, name_file, MY_DISTRIBUTIONS, dist, [25.0], directory, disag_factor)[1]
-    ln_cte2_list.append(ln_cte2_25)
-    ln_cte2_50 = get_idf_params1(t0, name_file, MY_DISTRIBUTIONS, dist, [50.0], directory, disag_factor)[1]
-    ln_cte2_list.append(ln_cte2_50)
-    ln_cte2_100 = get_idf_params1(t0, name_file, MY_DISTRIBUTIONS, dist, [100.0], directory, disag_factor)[1]
-    ln_cte2_list.append(ln_cte2_100)
-    #print(ln_cte2_list)
-    return_period_list = [2, 5, 10, 25, 50, 100]
+    Retorna:
+        float: Valor ótimo de t0 encontrado pela otimização.
+    """
+    # Função interna para calcular a soma negativa dos R²
+    def min_sum_r_sq(t0):
+        """
+        Calcula a soma negativa dos coeficientes de determinação (R²) para múltiplos períodos de retorno.
 
-    ln_RP_list = [np.log(RP) for RP in return_period_list] 
-    #print(ln_RP_list)
-    
+        Parâmetros:
+            t0 (float): Constante usada na linearização da curva IDF.
+
+        Retorna:
+            float: Soma negativa dos coeficientes de determinação (R²) para os períodos de retorno.
+        """
+        # Calcula os parâmetros IDF para todos os períodos de retorno
+        idf_results = calculate_duration_based_parameters(t0, name_file, return_periods, directory, disag_factor)
+
+        # Calcula a soma dos R²
+        total_r_sq = sum(result[0] for result in idf_results.values())
+
+        # Retorna a soma negativa (para otimização minimizante)
+        return -total_r_sq
+
+    # Executa a otimização para encontrar o valor ótimo de t0
+    result = minimize_scalar(min_sum_r_sq, bounds=(0.1, 10.0), method='bounded')  # Limites razoáveis para t0
+
+    # Retorna o valor ótimo de t0
+    return result.x
+
+
+
+def calculate_return_period_based_parameters(t0, name_file, directory='Results', disag_factor='nan'):
+    """
+    Calcula os parâmetros da curva IDF linearizada com base nos períodos de retorno, modelando a 
+    relação entre o período de retorno e a intensidade de precipitação.
+
+    Parâmetros:
+        t0 (float): Constante usada na linearização da curva IDF.
+        name_file (str): Nome do arquivo base contendo os dados de precipitação.
+        directory (str, opcional): Diretório onde os arquivos CSV estão armazenados. Padrão: 'Results'.
+        disag_factor (str, opcional): Fator de desagregação usado para ajustar os dados. Padrão: 'nan'.
+
+    Retorna:
+        tuple: Uma tupla contendo:
+        - r_sq (float): Coeficiente de determinação (R²) do ajuste linear. Mede a qualidade do ajuste entre ln(RP) e ln(cte2), onde:
+            - RP: Período de retorno (anos).
+            - cte2: Intercepto relacionado à magnitude das intensidades de precipitação.
+            
+        - K (float): Coeficiente relacionado à magnitude das intensidades de precipitação. 
+                        É obtido exponenciando o intercepto do ajuste linear (K = exp(ln_K)).
+                        
+        - m (float): Expoente que descreve como a intensidade de precipitação aumenta com o período de retorno. 
+                        Quanto maior o valor de m, mais sensível a intensidade é ao aumento do período de retorno.
+    """
+    # Lista fixa de períodos de retorno
+    return_periods = [2, 5, 10, 25, 50, 100]
+
+    # Calcula os parâmetros baseados na duração para todos os períodos de retorno
+    duration_based_results = calculate_duration_based_parameters(
+        t0=t0,
+        name_file=name_file,
+        return_periods=return_periods,
+        directory=directory,
+        disag_factor=disag_factor
+    )
+
+    # Extrai ln(cte2) para cada período de retorno
+    ln_cte2_list = [duration_based_results[rp][1] for rp in return_periods]
+
+    # Calcula ln(RP) para cada período de retorno
+    ln_RP_list = [np.log(rp) for rp in return_periods]
+
+    # Ajuste linear entre ln(RP) e ln(cte2)
     x = np.array(ln_RP_list).reshape((-1, 1))
     y = np.array(ln_cte2_list)
     model = LinearRegression().fit(x, y)
+
+    # Extrai os resultados do ajuste
     r_sq = model.score(x, y)
     ln_K = model.intercept_
     K = np.exp(ln_K)
-    m = model.coef_[0] 
-    
-    return r_sq, K, m    
+    m = model.coef_[0]
 
-def get_final_idf_params(name_file, MY_DISTRIBUTIONS, dist, directory = 'Results', disag_factor = 'nan', save_file = False):
-    #t0 = 11.827
-    t0 = get_t0(name_file, MY_DISTRIBUTIONS, dist, directory, disag_factor)
-    n = get_idf_params1(t0, name_file, MY_DISTRIBUTIONS, dist, [2], directory, disag_factor)[2]
-    n = abs(n)
-    #print(t0, n)
-    K = get_idf_params2(t0, name_file, MY_DISTRIBUTIONS, dist, directory, disag_factor)[1]
-    m = get_idf_params2(t0, name_file, MY_DISTRIBUTIONS, dist, directory, disag_factor)[2]
-    #print(K, m)
-    
-    if save_file == True:
-        dict_ = {'t0' : t0,
-                'n' : n, 
-                'K' : K, 
-                'm' : m
-                }
-        df = pd.DataFrame(dict_)
-        df.to_csv('{d}/IDF_params_{n}.csv'.format(n = name_file, d = directory), index = False)        
-    
+    return r_sq, K, m
+
+   
+
+def get_final_idf_params(name_file, directory='Results', disag_factor='nan', save_file=False):
+    """
+    Calcula os parâmetros finais da curva IDF e, opcionalmente, salva os resultados em um arquivo CSV.
+
+    Parâmetros:
+        name_file (str): Nome do arquivo base contendo os dados de precipitação.
+        MY_DISTRIBUTIONS (dict): Dicionário contendo as distribuições ajustadas para os dados.
+        dist (str): Distribuição específica a ser usada no cálculo das precipitações.
+        directory (str, opcional): Diretório onde os arquivos CSV estão armazenados. Padrão: 'Results'.
+        disag_factor (str, opcional): Fator de desagregação usado para ajustar os dados. Padrão: 'nan'.
+        save_file (bool, opcional): Indica se os parâmetros devem ser salvos em um arquivo CSV. Padrão: False.
+
+    Retorna:
+        tuple: Uma tupla contendo:
+            - t0 (float): Constante usada na linearização da curva IDF.
+            - n (float): Expoente que descreve como a intensidade varia com a duração.
+            - K (float): Coeficiente relacionado à magnitude das intensidades de precipitação.
+            - m (float): Expoente que descreve como a intensidade varia com o período de retorno.
+    """
+    # Calcula o valor ótimo de t0
+    t0 = find_optimal_t0(name_file, [2, 5, 10, 25, 50, 100], directory, disag_factor)
+
+    # Calcula o expoente n (relacionado à duração) usando o período de retorno de 2 anos
+    duration_based_results = calculate_duration_based_parameters(t0, name_file, [2], directory, disag_factor)
+    n = abs(duration_based_results[2][2])  # Acessa o valor de n para o período de retorno de 2 anos
+
+    # Calcula K e m (relacionados ao período de retorno)
+    _, K, m = calculate_return_period_based_parameters(t0, name_file, directory, disag_factor)
+
+    # Salva os parâmetros em um arquivo CSV, se necessário
+    if save_file:
+        data = {
+            't0': [t0],
+            'n': [n],
+            'K': [K],
+            'm': [m]
+        }
+        df = pd.DataFrame(data)
+        df.to_csv(f'{directory}/IDF_params_{name_file}.csv', index=False)
+
     return t0, n, K, m
     
 
@@ -295,6 +400,39 @@ if __name__ == '__main__':
         disag_factor='p0.2',
         save_table=True
     )
+    
+    results = calculate_duration_based_parameters(
+        t0=11.827,
+        name_file='inmet',
+        return_periods=[2],
+        directory='results',
+        disag_factor='p0.2'
+    )
+    
+    r_sqq, K, m = calculate_return_period_based_parameters(
+        t0=11.827,
+        name_file='inmet',
+        directory='results',
+        disag_factor='p0.2'
+    )
+    
+    t0, n, K, m = get_final_idf_params(
+        name_file='inmet',
+        directory='results',
+        disag_factor='p0.2',
+        save_file=True
+    )
+    
+   
+    
+    print(results)
+    
+    print('----------')
+    
+    print(f"R²: {r_sqq}")
+    print(f"K: {K}")
+    print(f"m: {m}")
+    
     
     # Imprime os resultados
     print(f"Precipitação para 2 anos: {p_2y}")
