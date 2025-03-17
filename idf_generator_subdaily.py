@@ -1,169 +1,180 @@
 import pandas as pd
-from base_functions import *
-from utils.get_distribution import *
+import math
+import numpy as np
+import scipy.stats as st
+import matplotlib.pyplot as plt
+
+from utils.error_correction import remove_outliers_from_max
+from utils.get_distribution import fit_data, get_top_fitted_distributions
 from scipy.optimize import minimize_scalar
+from sklearn.linear_model import LinearRegression
 
-def get_theoretical_max_precipitations(name_file, duration, MY_DISTRIBUTIONS, return_period_list, dist, directory = 'Results', disag_factor = 'nan', plot_graph = False):
-    if disag_factor == 'nan':
-        disag_factor = ''
-    elif disag_factor == 'original':
-        disag_factor = '_ger'
-    elif disag_factor == 'bl':
-        disag_factor = '_bl'
-        name_file = 'complete_{name}'.format(name = name_file, disag = disag_factor)
-        
-    else:
-        disag_factor = '{disag}'.format(disag = disag_factor)
-        
-    data_df_original = pd.read_csv('{d}/max_subdaily_{n}{disag}.csv'.format(n = name_file, d = directory, disag = disag_factor))
-     
-    data_df_2 = data_df_original.sort_values('Max_{dur}'.format(dur = duration), ascending=False).reset_index()[['Year', 'Max_{dur}'.format(dur = duration)]].reset_index()
-    data_df_2['Frequency'] = (data_df_2['index'] + 1)/(len(data_df_2)+1)
-    data_df_2['RP'] = 1/data_df_2['Frequency']
-    #print(data_df_2)
-     
-    data_df = data_df_original[['Max_{dur}'.format(dur = duration)]]
-    data_df = remove_outliers_from_max(data_df, duration)
-    mean = data_df.iloc[:,0].mean()
-    data = data_df.values.ravel()
-    #print(data)
-     
-    #MY_DISTRIBUTIONS = [st.norm, st.lognorm, st.genextreme, st.gumbel_r]
-    
-    results = fit_data(data, MY_DISTRIBUTIONS) ## Usar qdo nao eh GEV para INMET_aut
-    df_parameters = get_parameters(data, results, 5) ## Usar qdo nao eh GEV para INMET_aut
-    #df_parameters = pd.read_csv('Results/INMET_aut_GEV_params.csv') ##Usar qdo eh GEV para INMET_aut
-    #print(df_parameters)
-    #input()
-    
-    dist_n = dist 
-    dist = MY_DISTRIBUTIONS[0]
-    c = df_parameters['c'][0]
-    loc = df_parameters['loc'][0]
-    scale = df_parameters['scale'][0]
-    #print(c, loc, scale)
-    
-    if math.isnan(c) == True:
-        prob_function_obj = dist(loc, scale)
-    else:
-        prob_function_obj = dist(c, loc, scale)
 
-    #x_in = np.linspace(0,1,200)
-    RP_list = return_period_list
-    #print(RP_list)
-    probabilities = [1 - 1/RP for RP in RP_list]
-    #print(probabilities)
-    precipitations_dist = prob_function_obj.ppf(probabilities)
-    #print(y_out)
-    if plot_graph == True:   
+
+def calculate_theoretical_max_precipitations(
+    file_name: str,
+    duration: int,
+    return_periods: list,
+    results_dir: str = 'results',
+    disag_factor: str = 'nan',
+    plot: bool = False,
+    return_distribution_name: bool = False
+):
+    """
+    Calcula as precipitações máximas teóricas para diferentes períodos de retorno.
+
+    Parâmetros:
+        file_name (str): Nome base do arquivo CSV contendo os dados de precipitação máxima subdiária.
+        duration (int): Duração específica do evento de precipitação (ex.: 1 hora, 6 horas).
+        return_periods (list): Lista de períodos de retorno (em anos) para cálculo das precipitações máximas.
+        results_dir (str, opcional): Diretório onde os arquivos CSV estão armazenados. Padrão: 'results'.
+        disag_factor (str, opcional): Fator de desagregação usado para ajustar o nome do arquivo ou processamento. 
+                                               Padrão: 'nan'.
+        plot (bool, opcional): Indica se um gráfico deve ser gerado. Padrão: False.
+        return_distribution_name (bool, opcional): Indica se o nome da distribuição utilizada deve ser retornado. 
+                                                   Padrão: False.
+
+    Retorna:
+        np.ndarray: Array com as precipitações máximas teóricas calculadas para os períodos de retorno.
+        str (opcional): Nome da distribuição utilizada, se `return_distribution_name=True`.
+    """
+    # Ajusta o fator de desagregação
+    disag = (
+        '' if disag_factor == 'nan'
+        else '_ger' if disag_factor == 'original'
+        else '_bl' if disag_factor == 'bl'
+        else f'_{disag_factor}'
+    )
+    if disag_factor == 'bl':
+        file_name = f'complete_{file_name}'
+
+    # Lê os dados do arquivo CSV
+    file_path = f'{results_dir}/max_subdaily_{file_name}{disag}.csv'
+    data = pd.read_csv(file_path)
+
+    # Ordena os dados e calcula frequência empírica e período de retorno
+    max_col = f'Max_{duration}'
+    sorted_data = (
+        data[[max_col]]
+        .sort_values(max_col, ascending=False)
+        .reset_index()
+    )
+    sorted_data['RP'] = (sorted_data.index + 1) / (len(sorted_data) + 1)
+    sorted_data['RP'] = 1 / sorted_data['RP']
+
+    # Remove outliers e extrai valores de precipitação
+    filtered = remove_outliers_from_max(data[[max_col]], max_col, duration)
+    values = filtered.values.ravel()
+
+    # Ajusta os dados à melhor distribuição
+    fit_results = fit_data(values)
+    best_params = get_top_fitted_distributions(values, fit_results, n=1).iloc[0]
+
+    # Seleciona e instancia a distribuição ajustada
+    dist = getattr(st, best_params['distribution'].lower())
+    prob_func = (
+        dist(best_params['loc'], best_params['scale']) if math.isnan(best_params['c'])
+        else dist(best_params['c'], best_params['loc'], best_params['scale'])
+    )
+
+    # Calcula precipitações teóricas para os períodos de retorno
+    probs = [1 - 1 / period for period in return_periods]
+    theoretical = prob_func.ppf(probs)
+
+    # Gera o gráfico, se necessário
+    if plot:
         fig, ax = plt.subplots(figsize=(6, 4))
-        ax.plot(RP_list, precipitations_dist) # graphically check the results of the inverse CDF
-        ax.plot(data_df_2['RP'], data_df_2['Max_{dur}'.format(dur = duration)])
-        ax.set(ylabel = 'Precipitation (mm)', xlabel = 'Return Period (Years)', title = dist_n)
-        #ax.grid(color = 'gray')
-        #ax.set_facecolor('white')
-        #plt.show()
-        fig.savefig('Graphs/distributions/quantile_plot_{n}_{disag}_{dis}_subdaily_{dur}.png'.format(n = name_file, dis = dist_n, dur = duration, disag = disag_factor))
+        ax.plot(return_periods, theoretical, label='Teórico', color='blue')
+        ax.plot(sorted_data['RP'], sorted_data[max_col], label='Observado', linestyle='--', color='orange')
+        ax.set(ylabel=f'Precipitação em {duration} (mm)', xlabel='Período de Retorno (Anos)', title=f'Distribuição: {best_params["distribution"]}')
+        ax.legend()
+        plot_path = f'graphs/distributions/quantile_plot_{file_name}_{disag}_{best_params["distribution"]}_subdaily_{duration}.png'
+        fig.savefig(plot_path)
+        plt.show()
+        plt.close(fig)
 
-    return precipitations_dist
-
-
-def get_precipitations_allRP(name_file, duration, MY_DISTRIBUTIONS, dist, directory, disag_factor = 'nan'):
-    
-    return_period_list = [1.1, 2, 5, 10, 25, 50, 100]
-    
-    precipitations_dist = get_theoretical_max_precipitations(name_file, duration, MY_DISTRIBUTIONS, return_period_list, dist, directory, disag_factor)
-    
-    P_2Years = precipitations_dist[1]   
-    P_5Years = precipitations_dist[2]   
-    P_10Years = precipitations_dist[3]
-    P_25Years = precipitations_dist[4]
-    P_50Years = precipitations_dist[5]
-    P_100Years = precipitations_dist[6]
-    
-    return P_2Years, P_5Years, P_10Years, P_25Years, P_50Years, P_100Years
+    # Retorna os resultados
+    if return_distribution_name:
+        return theoretical, best_params['distribution']
+    return theoretical
 
 
-def get_precipitation_byRP(name_file, duration, MY_DISTRIBUTIONS, dist, return_period_list, directory, disag_factor = 'nan'):
-    
-    precipitations_dist = get_theoretical_max_precipitations(name_file, duration, MY_DISTRIBUTIONS, return_period_list, dist, directory, disag_factor)
-    P_ = precipitations_dist[0]
-    
-    return P_  
 
+def calculate_idf_table(
+    file_name: str,
+    directory: str = 'results',
+    disag_factor: str = 'nan',
+    save_table: bool = False
+):
+    """
+    Gera uma tabela IDF (Intensity-Duration-Frequency) com base nos dados de precipitação.
 
-def get_idf_table(name_file, MY_DISTRIBUTIONS, dist, directory = 'Results', disag_factor = 'nan', save_table = False):
+    Parâmetros:
+        name_file (str): Nome do arquivo base contendo os dados de precipitação.
+        directory (str, opcional): Diretório onde os arquivos CSV serão salvos. Padrão: 'Results'.
+        disag_factor (str, opcional): Fator de desagregação usado para ajustar os dados. Padrão: 'nan'.
+        save_table (bool, opcional): Indica se a tabela IDF deve ser salva em um arquivo CSV. Padrão: False.
+
+    Retorna:
+        tuple: Uma tupla contendo:
+            - duration_list_min (list): Lista de durações dos eventos de precipitação (em minutos).
+            - ln_i_RP_2Years, ln_i_RP_5Years, ln_i_RP_10Years, ln_i_RP_25Years, ln_i_RP_50Years, ln_i_RP_100Years:
+              Listas com os logaritmos naturais das intensidades de precipitação para diferentes períodos de retorno.
+    """
     
-    if disag_factor == 'nan':   
+    # Define as durações com base no fator de desagregação
+    if disag_factor == 'nan':
         duration_list_min = [60, 180, 360, 480, 600, 720, 1440]
         duration_list = [1, 3, 6, 8, 10, 12, 24]
-    
     else:
         duration_list_min = [5, 10, 20, 30, 60, 360, 480, 600, 720, 1440]
-        duration_list = ['5min', '10min', '20min', '30min', '1', '6', '8', '10', '12', '24']
+        duration_list = ['5min', '10min', '20min', '30min', '1h', '6h', '8h', '10h', '12h', '24h']
 
-    P_RP_2Years = []
-    P_RP_5Years = []
-    P_RP_10Years = []
-    P_RP_25Years = []
-    P_RP_50Years = []
-    P_RP_100Years = []
-    
+    # Define os períodos de retorno
+    return_periods = [2, 5, 10, 25, 50, 100]
+    P_RP_dict = {f"P_RP_{rp}Years": [] for rp in return_periods}
+
+    # Calcula as precipitações para cada duração
     for duration in duration_list:
-        P_2Years, P_5Years, P_10Years, P_25Years, P_50Years, P_100Years = get_precipitations_allRP(name_file, duration, MY_DISTRIBUTIONS, dist, directory, disag_factor)
-        P_RP_2Years.append(P_2Years)
-        P_RP_5Years.append(P_5Years)
-        P_RP_10Years.append(P_10Years)
-        P_RP_25Years.append(P_25Years)
-        P_RP_50Years.append(P_50Years)
-        P_RP_100Years.append(P_100Years)
+        precipitations, dist_name = calculate_theoretical_max_precipitations(
+            file_name=file_name,
+            duration=duration,
+            return_periods=return_periods,
+            results_dir=directory,
+            disag_factor=disag_factor,
+            plot=False,
+            return_distribution_name=True
+        )
+        for idx, rp in enumerate(return_periods):
+            P_RP_dict[f"P_RP_{rp}Years"].append(precipitations[idx])
 
-    #print(P_RP_2Years)
-    i_RP_2Years = [P*60/d for P, d in zip(P_RP_2Years, duration_list_min)] 
-    #print(i_RP_2Years)
-    #input()
-    ln_i_RP_2Years = [np.log(i) for i in i_RP_2Years]
-    #print(ln_i_RP_2Years)
-    #input()
-    i_RP_5Years = [P*60/d for P, d in zip(P_RP_5Years, duration_list_min)] 
-    ln_i_RP_5Years = [np.log(i) for i in i_RP_5Years]
-    
-    i_RP_10Years = [P*60/d for P, d in zip(P_RP_10Years, duration_list_min)] 
-    ln_i_RP_10Years = [np.log(i) for i in i_RP_10Years]
-    
-    i_RP_25Years = [P*60/d for P, d in zip(P_RP_25Years, duration_list_min)] 
-    ln_i_RP_25Years = [np.log(i) for i in i_RP_25Years]
-    
-    i_RP_50Years = [P*60/d for P, d in zip(P_RP_50Years, duration_list_min)] 
-    ln_i_RP_50Years = [np.log(i) for i in i_RP_50Years]
-    
-    i_RP_100Years = [P*60/d for P, d in zip(P_RP_100Years, duration_list_min)] 
-    ln_i_RP_100Years = [np.log(i) for i in i_RP_100Years]
-    
-    if save_table == True:  ##Quando for arrumar o codigo eu posso tirar o ln, o return e o save_table pq essa funcao serve soh para me dar a tabela. Nao uso ela dps.
-        dict_ = {'duration' : duration_list_min,
-                'P_RP_2Years' : P_RP_2Years, 
-                'P_RP_5Years' : P_RP_5Years, 
-                'P_RP_10Years' : P_RP_10Years, 
-                'P_RP_25Years' : P_RP_25Years,
-                'P_RP_50Years' : P_RP_50Years,
-                'P_RP_100Years' : P_RP_100Years, 
-                'i_RP_2Years' : i_RP_2Years,
-                'i_RP_5Years' : i_RP_5Years,
-                'i_RP_10Years' : i_RP_10Years,
-                'i_RP_25Years' : i_RP_25Years,
-                'i_RP_50Years' : i_RP_50Years,
-                'i_RP_100Years' : i_RP_100Years
-            }
+    # Calcula as intensidades e seus logaritmos naturais
+    i_RP_dict = {}
+    ln_i_RP_dict = {}
+    for rp in return_periods:
+        i_RP_dict[f"i_RP_{rp}Years"] = [P * 60 / d for P, d in zip(P_RP_dict[f"P_RP_{rp}Years"], duration_list_min)]
+        ln_i_RP_dict[f"ln_i_RP_{rp}Years"] = [np.log(i) for i in i_RP_dict[f"i_RP_{rp}Years"]]
+
+    # Salva a tabela em um arquivo CSV, se necessário
+    if save_table:
+        data = {
+            "duration": duration_list_min,
+            **P_RP_dict,
+            **i_RP_dict
+        }
+        df = pd.DataFrame(data)
         
-        df = pd.DataFrame(dict_)
-        #print(df)
         if disag_factor == 'bl':
-            name_file = 'complete_{n}'.format(n = name_file)
-            
-        df.to_csv('{d}/IDFsubdaily_table_{n}_{dis}_{disag}.csv'.format(n = name_file, dis = dist, d = directory, disag = disag_factor), index = False)
-    
-    return duration_list_min, ln_i_RP_2Years, ln_i_RP_5Years, ln_i_RP_10Years, ln_i_RP_25Years, ln_i_RP_50Years, ln_i_RP_100Years
+            file_name = f"complete_{file_name}"
+        
+        file_path = f"{directory}/IDFsubdaily_table_{file_name}_{dist_name}_{disag_factor}.csv"
+        df.to_csv(file_path, index=False)
+
+    # Retorna os resultados necessários
+    return (
+        duration_list_min,
+        *[ln_i_RP_dict[f"ln_i_RP_{rp}Years"] for rp in return_periods]
+    )
 
 
 def get_idf_for_fit(name_file, MY_DISTRIBUTIONS, dist, return_period_list, directory = 'Results', disag_factor = 'nan'):
@@ -269,40 +280,26 @@ def get_final_idf_params(name_file, MY_DISTRIBUTIONS, dist, directory = 'Results
 
 
 if __name__ == '__main__':
-    name_file = 'MIROC5_baseline_MD'
-    print(name_file)
-    directory = 'GCM_data//bias_correction//gcm'
-    dist_list = ['Normal', 'Lognormal', 'GEV', 'Gumbel', 'GenLogistic']
-    disag_factor = ''
-
-    for dist in dist_list:
-        print('--> ', dist, disag_factor)
-        if dist == 'Normal':
-            MY_DISTRIBUTIONS = [st.norm]  ##Para INMET_aut GEV peguei os valores dos parametros do R
-        if dist == 'GEV':
-            MY_DISTRIBUTIONS = [st.genextreme]
-        if dist == 'Lognormal':
-            MY_DISTRIBUTIONS = [st.lognorm]
-        if dist == 'GenLogistic':
-            MY_DISTRIBUTIONS = [st.genlogistic]
-        if dist == 'Gumbel':
-            MY_DISTRIBUTIONS = [st.gumbel_r]
-                    
-        return_period_list = [1.1, 2, 5, 10, 25, 50, 100]
-        return_period_list = [1.1, 2, 5, 10, 25, 50, 100]  ## Default return_period_list for get_idf_table
-         
-        get_theoretical_max_precipitations(name_file, 1, MY_DISTRIBUTIONS, return_period_list, dist, directory, disag_factor, plot_graph = True)
-        get_theoretical_max_precipitations(name_file, 6, MY_DISTRIBUTIONS, return_period_list, dist, directory, disag_factor, plot_graph = True)
-        get_theoretical_max_precipitations(name_file, 8, MY_DISTRIBUTIONS, return_period_list, dist, directory, disag_factor, plot_graph = True)
-        get_theoretical_max_precipitations(name_file, 10, MY_DISTRIBUTIONS, return_period_list, dist, directory, disag_factor, plot_graph = True)
-        get_theoretical_max_precipitations(name_file, 12, MY_DISTRIBUTIONS, return_period_list, dist, directory, disag_factor, plot_graph = True)
-        get_theoretical_max_precipitations(name_file, 24, MY_DISTRIBUTIONS, return_period_list, dist, directory, disag_factor, plot_graph = True)
-     
-        get_idf_table(name_file, MY_DISTRIBUTIONS, dist, directory, disag_factor, save_table = True)
-     
-        t0, n, K, m = get_final_idf_params(name_file, MY_DISTRIBUTIONS, dist, directory, disag_factor)    
-        print('K: ', K)
-        print('t0: ', t0)
-        print(' m: ', m)
-        print('n: ', n)
-        print('')
+    
+    p_2y, p_5y, p_10y, p_25y, p_50y, p_100y = calculate_theoretical_max_precipitations(
+        file_name='inmet',
+        duration='1h',
+        return_periods=[2, 5, 10, 25, 50, 100],
+        results_dir='results',
+        disag_factor='p0.2',
+        plot=True
+    )
+    
+    calculate_idf_table(
+        file_name='inmet',
+        disag_factor='p0.2',
+        save_table=True
+    )
+    
+    # Imprime os resultados
+    print(f"Precipitação para 2 anos: {p_2y}")
+    print(f"Precipitação para 5 anos: {p_5y}")
+    print(f"Precipitação para 10 anos: {p_10y}")
+    print(f"Precipitação para 25 anos: {p_25y}")
+    print(f"Precipitação para 50 anos: {p_50y}")
+    print(f"Precipitação para 100 anos: {p_100y}")

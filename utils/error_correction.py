@@ -114,7 +114,7 @@ def fill_missing_data(name, var):
 
 
 
-def remove_outliers_from_max(df, duration=0):
+def remove_outliers_from_max(df, column='Precipitation', duration=0):
     """
     Remove outliers da coluna 'Precipitation' de um DataFrame, sem agrupar os dados.
 
@@ -129,15 +129,15 @@ def remove_outliers_from_max(df, duration=0):
     df_no_na = df.dropna()
 
     # Calcula os limites para remoção de outliers usando o IQR
-    q1 = df_no_na['Precipitation'].quantile(0.25)
-    q3 = df_no_na['Precipitation'].quantile(0.75)
+    q1 = df_no_na[column].quantile(0.25)
+    q3 = df_no_na[column].quantile(0.75)
     iqr = q3 - q1
     lower_bound = q1 - 1.5 * iqr
     upper_bound = q3 + 1.5 * iqr
 
     # Filtra os dados para remover os outliers
-    df_filtered = df_no_na[(df_no_na['Precipitation'] > lower_bound) & 
-                           (df_no_na['Precipitation'] < upper_bound)]
+    df_filtered = df_no_na[(df_no_na[column] > lower_bound) & 
+                           (df_no_na[column] < upper_bound)]
     
     # Caso uma duração seja passada, renomeia a coluna
     if duration != 0:
