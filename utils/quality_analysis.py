@@ -23,8 +23,9 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import pandas as pd
 import pymannkendall as mk
-from utils.error_correction import verification, fill_missing_data
-from utils.data_processing import read_csv
+
+from error_correction import verification, fill_missing_data
+from data_processing import read_csv
 
 
 """

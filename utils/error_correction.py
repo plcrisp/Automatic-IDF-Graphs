@@ -7,7 +7,7 @@ Utiliza a biblioteca Pandas para manipulação de dados e uma biblioteca auxilia
 
 import pandas as pd
 from datetime import date
-from utils.data_processing import *
+from data_processing import *
 
 def verification(df):
     """

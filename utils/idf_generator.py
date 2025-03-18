@@ -53,8 +53,8 @@ import scipy.stats as st
 import matplotlib.pyplot as plt
 import os
 
-from utils.error_correction import remove_outliers_from_max
-from utils.get_distribution import fit_data, get_top_fitted_distributions
+from error_correction import remove_outliers_from_max
+from get_distribution import fit_data, get_top_fitted_distributions
 from scipy.optimize import minimize_scalar
 from sklearn.linear_model import LinearRegression
 
@@ -137,7 +137,7 @@ def calculate_theoretical_max_precipitations(
         ax.plot(sorted_data['RP'], sorted_data[max_col], label='Observado', linestyle='--', color='orange')
         ax.set(ylabel=f'Precipitação em {duration} (mm)', xlabel='Período de Retorno (Anos)', title=f'Distribuição: {best_params["distribution"]}')
         ax.legend()
-        plot_path = f'graphs/distributions/quantile_plot_{file_name}_{disag}_{best_params["distribution"]}_subdaily_{duration}.png'
+        plot_path = f'../graphs/distributions/quantile_plot_{file_name}_{disag}_{best_params["distribution"]}_subdaily_{duration}.png'
         fig.savefig(plot_path)
         plt.show()
         plt.close(fig)
@@ -398,7 +398,7 @@ def get_final_idf_params(
     durations=None,
     return_periods=None,
     save_plot=False,
-    plot_directory='graphs'
+    plot_directory='../graphs'
 ):
     """
     Calcula os parâmetros finais da curva IDF e, opcionalmente, salva os resultados em um arquivo CSV 
@@ -416,7 +416,7 @@ def get_final_idf_params(
                                          Padrão: [1, 2, 5, 10, 25, 50, 100, 200, 500, 1000].
         save_plot (bool, opcional): Indica se o gráfico deve ser salvo em um arquivo. Padrão: False.
         plot_directory (str, opcional): Diretório onde o gráfico será salvo, se `save_plot=True`. 
-                                        Padrão: 'graphs'.
+                                        Padrão: '../graphs'.
 
     Retorna:
         tuple: Uma tupla contendo:
@@ -468,7 +468,7 @@ def plot_idf_curves(
     durations=None,
     return_periods=None,
     save_plot=False,
-    plot_directory='graphs'
+    plot_directory='../graphs'
 ):
     """
     Gera e exibe as curvas IDF (Intensity-Duration-Frequency) com base nos parâmetros fornecidos.
@@ -485,7 +485,7 @@ def plot_idf_curves(
                                          Padrão: [1, 2, 5, 10, 25, 50, 100, 200, 500, 1000].
         save_plot (bool, opcional): Indica se o gráfico deve ser salvo em um arquivo. Padrão: False.
         plot_directory (str, opcional): Diretório onde o gráfico será salvo, se `save_plot=True`. 
-                                        Padrão: 'graphs'.
+                                        Padrão: '../graphs'.
     """
     # Define valores padrão para durations e return_periods, se não forem fornecidos
     if durations is None:
@@ -525,7 +525,7 @@ if __name__ == '__main__':
     
     t0, n, K, m = get_final_idf_params(
         name_file='inmet',
-        directory='results',
+        directory='../results',
         disag_factor='p0.2',
         save_file=True,
         plot=True,

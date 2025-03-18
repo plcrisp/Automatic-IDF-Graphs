@@ -18,8 +18,8 @@ import pandas as pd
 import os
 import seaborn as sns
 import matplotlib.pyplot as plt
-from utils.error_correction import remove_outliers_from_max
-from utils.intervals_manipulation import aggregate_precipitation
+from error_correction import remove_outliers_from_max
+from intervals_manipulation import aggregate_precipitation
 
 
 """
