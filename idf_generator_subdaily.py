@@ -51,6 +51,7 @@ import math
 import numpy as np
 import scipy.stats as st
 import matplotlib.pyplot as plt
+import os
 
 from utils.error_correction import remove_outliers_from_max
 from utils.get_distribution import fit_data, get_top_fitted_distributions
@@ -388,17 +389,34 @@ def calculate_return_period_based_parameters(t0, name_file, directory='Results',
 
    
 
-def get_final_idf_params(name_file, directory='Results', disag_factor='nan', save_file=False):
+def get_final_idf_params(
+    name_file,
+    directory='Results',
+    disag_factor='nan',
+    save_file=False,
+    plot=False,
+    durations=None,
+    return_periods=None,
+    save_plot=False,
+    plot_directory='graphs'
+):
     """
-    Calcula os parâmetros finais da curva IDF e, opcionalmente, salva os resultados em um arquivo CSV.
+    Calcula os parâmetros finais da curva IDF e, opcionalmente, salva os resultados em um arquivo CSV 
+    e/ou plota as curvas IDF.
 
     Parâmetros:
         name_file (str): Nome do arquivo base contendo os dados de precipitação.
-        MY_DISTRIBUTIONS (dict): Dicionário contendo as distribuições ajustadas para os dados.
-        dist (str): Distribuição específica a ser usada no cálculo das precipitações.
         directory (str, opcional): Diretório onde os arquivos CSV estão armazenados. Padrão: 'Results'.
         disag_factor (str, opcional): Fator de desagregação usado para ajustar os dados. Padrão: 'nan'.
         save_file (bool, opcional): Indica se os parâmetros devem ser salvos em um arquivo CSV. Padrão: False.
+        plot (bool, opcional): Indica se as curvas IDF devem ser plotadas. Padrão: False.
+        durations (list, opcional): Lista de durações dos eventos de precipitação (em minutos). 
+                                    Padrão: [5, 10, 15, 20, 30, 45, 60, 90, 120, 180, 240, 360, 720, 1440].
+        return_periods (list, opcional): Lista de períodos de retorno (em anos). 
+                                         Padrão: [1, 2, 5, 10, 25, 50, 100, 200, 500, 1000].
+        save_plot (bool, opcional): Indica se o gráfico deve ser salvo em um arquivo. Padrão: False.
+        plot_directory (str, opcional): Diretório onde o gráfico será salvo, se `save_plot=True`. 
+                                        Padrão: 'graphs'.
 
     Retorna:
         tuple: Uma tupla contendo:
@@ -407,10 +425,11 @@ def get_final_idf_params(name_file, directory='Results', disag_factor='nan', sav
             - K (float): Coeficiente relacionado à magnitude das intensidades de precipitação.
             - m (float): Expoente que descreve como a intensidade varia com o período de retorno.
     """
+
     # Calcula o valor ótimo de t0
     t0 = find_optimal_t0(name_file, [2, 5, 10, 25, 50, 100], directory, disag_factor)
 
-    # Calcula o expoente n (relacionado à duração) usando o período de retorno de 2 anos
+    # Calcula o expoente n (relacionado à duração) usando o período de retorno de 2 anos (convenção)
     duration_based_results = calculate_duration_based_parameters(t0, name_file, [2], directory, disag_factor)
     n = abs(duration_based_results[2][2])  # Acessa o valor de n para o período de retorno de 2 anos
 
@@ -428,64 +447,89 @@ def get_final_idf_params(name_file, directory='Results', disag_factor='nan', sav
         df = pd.DataFrame(data)
         df.to_csv(f'{directory}/IDF_params_{name_file}.csv', index=False)
 
+    # Plota as curvas IDF, se necessário
+    if plot:
+        plot_idf_curves(
+            t0, n, K, m,
+            durations=durations,
+            return_periods=return_periods,
+            save_plot=save_plot,
+            plot_directory=plot_directory,
+            name_file=name_file,
+        )
+
     return t0, n, K, m
+
+
+
+def plot_idf_curves(
+    t0, n, K, m,
+    name_file,
+    durations=None,
+    return_periods=None,
+    save_plot=False,
+    plot_directory='graphs'
+):
+    """
+    Gera e exibe as curvas IDF (Intensity-Duration-Frequency) com base nos parâmetros fornecidos.
+
+    Parâmetros:
+        t0 (float): Constante usada na linearização da curva IDF.
+        n (float): Expoente que descreve como a intensidade varia com a duração.
+        K (float): Coeficiente relacionado à magnitude das intensidades de precipitação.
+        m (float): Expoente que descreve como a intensidade varia com o período de retorno.
+        name_file (str): Nome do arquivo base contendo os dados de precipitação.
+        durations (list, opcional): Lista de durações dos eventos de precipitação (em minutos). 
+                                    Padrão: [5, 10, 15, 20, 30, 45, 60, 90, 120, 180, 240, 360, 720, 1440].
+        return_periods (list, opcional): Lista de períodos de retorno (em anos). 
+                                         Padrão: [1, 2, 5, 10, 25, 50, 100, 200, 500, 1000].
+        save_plot (bool, opcional): Indica se o gráfico deve ser salvo em um arquivo. Padrão: False.
+        plot_directory (str, opcional): Diretório onde o gráfico será salvo, se `save_plot=True`. 
+                                        Padrão: 'graphs'.
+    """
+    # Define valores padrão para durations e return_periods, se não forem fornecidos
+    if durations is None:
+        durations = [5, 10, 15, 20, 30, 45, 60, 90, 120, 180, 240, 360, 720, 1440]
+    if return_periods is None:
+        return_periods = [1, 2, 5, 10, 25, 50, 100, 200, 500, 1000]
+
+    # Gera as curvas IDF
+    idf_curves = {}
+    for rp in return_periods:
+        intensities = [K * (rp ** m) / ((d + t0) ** n) for d in durations]
+        idf_curves[rp] = intensities
+
+    # Plota as curvas
+    plt.figure(figsize=(10, 6))
+    for rp, intensities in idf_curves.items():
+        plt.plot(durations, intensities, label=f'RP = {rp} anos')
+    plt.xlabel('Duração (minutos)')
+    plt.ylabel('Intensidade (mm/h)')
+    plt.title('Curvas IDF (Intensity-Duration-Frequency)')
+    plt.legend()
+    plt.grid(True)
+
+    # Salva o gráfico, se necessário
+    if save_plot:
+        os.makedirs(plot_directory, exist_ok=True)  # Cria o diretório, se ele não existir
+        plot_path = f'{plot_directory}/{name_file}_IDF_curves.png'
+        plt.savefig(plot_path)
+
+    # Exibe o gráfico
+    plt.show()
+    plt.close()
     
 
 
 if __name__ == '__main__':
     
-    p_2y, p_5y, p_10y, p_25y, p_50y, p_100y = calculate_theoretical_max_precipitations(
-        file_name='inmet',
-        duration='1h',
-        return_periods=[2, 5, 10, 25, 50, 100],
-        results_dir='results',
-        disag_factor='p0.2',
-        plot=True
-    )
-    
-    calculate_idf_table(
-        file_name='inmet',
-        disag_factor='p0.2',
-        save_table=True
-    )
-    
-    results = calculate_duration_based_parameters(
-        t0=11.827,
-        name_file='inmet',
-        return_periods=[2],
-        directory='results',
-        disag_factor='p0.2'
-    )
-    
-    r_sqq, K, m = calculate_return_period_based_parameters(
-        t0=11.827,
-        name_file='inmet',
-        directory='results',
-        disag_factor='p0.2'
-    )
-    
     t0, n, K, m = get_final_idf_params(
         name_file='inmet',
         directory='results',
         disag_factor='p0.2',
-        save_file=True
+        save_file=True,
+        plot=True,
+        durations=[5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60],
+        return_periods=[2, 5, 10, 25, 50, 100, 200, 500, 1000],
+        save_plot=True,
     )
-    
-   
-    
-    print(results)
-    
-    print('----------')
-    
-    print(f"R²: {r_sqq}")
-    print(f"K: {K}")
-    print(f"m: {m}")
-    
-    
-    # Imprime os resultados
-    print(f"Precipitação para 2 anos: {p_2y}")
-    print(f"Precipitação para 5 anos: {p_5y}")
-    print(f"Precipitação para 10 anos: {p_10y}")
-    print(f"Precipitação para 25 anos: {p_25y}")
-    print(f"Precipitação para 50 anos: {p_50y}")
-    print(f"Precipitação para 100 anos: {p_100y}")
