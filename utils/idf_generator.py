@@ -31,7 +31,12 @@ de eventos de precipitação. O processo geral inclui os seguintes passos:
 
 6. **Obtenção dos Parâmetros Finais da Curva IDF**:
    - A função `get_final_idf_params` coordena todas as etapas anteriores para calcular os parâmetros finais da 
-     curva IDF: t0, n, K e m. Esses parâmetros podem ser salvos em um arquivo CSV para uso posterior.
+     curva IDF: t0, n, K e m. Esses parâmetros podem ser salvos em um arquivo CSV para uso posterior. Além disso, 
+     ela possibilita a visualização das curvas IDF por meio de gráficos, que podem ser salvos ou exibidos diretamente.
+
+7. **Geração de Tabelas e Gráficos IDF**:
+   - A função `generate_idf_tables` utiliza os parâmetros IDF pré-calculados para gerar tabelas de intensidade 
+     e precipitação acumulada para diferentes durações e períodos de retorno.
 
 O código utiliza métodos estatísticos avançados, como ajuste de distribuições e regressão linear, para garantir 
 que as curvas IDF sejam precisas e representativas dos dados observados. Ele também oferece flexibilidade para 
