@@ -81,7 +81,7 @@ Module with auxiliary functions organized for handling and analyzing rainfall da
 
 - 📊 *get_distribution.py*: analyze daily or sub-daily precipitation data by fitting statistical distributions, generating visualizations, and saving the parameters of the best-fitted distributions for further use.
 
-- 📐 *idf_generator.py* : Generates IDF (Intensity-Duration-Frequency) curves for hydrological analysis. Computes key parameters (t0, n, K, m) by fitting statistical distributions, optimizing constants, and modeling relationships between rainfall intensity, duration, and frequency. Supports tasks like calculating theoretical precipitation for return periods and generating IDF tables, with optional CSV export for further analysis.
+- 📐 *idf_generator.py*: Generates IDF curves for hydrological analysis, optimizing parameters (t0, n, K, m) and modeling rainfall intensity, duration, and frequency. Supports theoretical precipitation calculations and CSV export.
 
 
 
