@@ -519,6 +519,100 @@ def plot_idf_curves(
     plt.show()
     plt.close()
     
+    
+    
+def generate_idf_tables(
+    name_file: str,
+    disag_factor: str,
+    directory: str = '../results',
+    durations=None,
+    return_periods=None,    
+    save_tables: bool = True
+) -> tuple:
+    """
+    Gera tabelas de intensidade e precipitação para diferentes durações e períodos de retorno 
+    com base nos parâmetros IDF pré-calculados.
+    
+    Parâmetros:
+        name_file (str): Nome da estação meteorológica ou identificador da série de dados.
+        disag_factor (str): Fator de desagregação usado para ajustar os dados.
+        directory (str, opcional): Diretório onde os arquivos IDF estão armazenados. Padrão: 'results'.
+        durations (list, opcional): Lista de durações dos eventos de precipitação (em minutos). 
+                                    Padrão: [5, 10, 15, 20, 30, 45, 60, 90, 120, 180, 240, 360, 720, 1440].
+        return_periods (list, opcional): Lista de períodos de retorno (em anos). 
+                                         Padrão: [1, 2, 5, 10, 25, 50, 100, 200, 500, 1000].
+        save_tables (bool, opcional): Indica se as tabelas geradas devem ser salvas em arquivos CSV. 
+                                      Padrão: True.
+    
+    Retorna:
+        tuple: Uma tupla contendo:
+            - df_intensity (pd.DataFrame): Tabela de intensidades de precipitação para diferentes 
+                                           durações e períodos de retorno.
+            - df_precipitation (pd.DataFrame): Tabela de precipitações acumuladas para diferentes 
+                                               durações e períodos de retorno.
+    """
+    # Ajusta o nome da estação e o fator de desagregação com base no método de downscaling
+    disag_factor = f'_{disag_factor}'
+
+    # Constrói o caminho do arquivo IDF com base no nome da estação e no diretório fornecido
+    idf_file_path = f'{directory}/IDF_params_{name_file}.csv'
+
+   # Lê os parâmetros IDF do arquivo CSV correspondente à estação
+    try:
+        df_IDF_params = pd.read_csv(idf_file_path)
+    except FileNotFoundError:
+        raise FileNotFoundError(f"Arquivo IDF não encontrado: {idf_file_path}")
+
+    # Verifica se há dados correspondentes
+    if df_IDF_params.empty:
+        raise ValueError("Nenhum parâmetro IDF encontrado para os critérios fornecidos.")
+
+    # Extrai os parâmetros IDF
+    K = df_IDF_params['K'][0]
+    t0 = df_IDF_params['t0'][0]
+    m = df_IDF_params['m'][0]
+    n = df_IDF_params['n'][0]
+    
+    # Define valores padrão para durations e return_periods, se não forem fornecidos
+    if durations is None:
+        durations = [5, 10, 15, 20, 30, 45, 60, 90, 120, 180, 240, 360, 720, 1440]
+    if return_periods is None:
+        return_periods = [2, 5, 10, 25, 50, 100]
+
+
+    # Calcula as intensidades e precipitações para cada período de retorno e duração
+    i_final, P_final = [], []
+    for RP in return_periods:
+        i_list, P_list = [], []
+        for d in durations:
+            i_prec = K * (RP ** m) / ((d + t0) ** n)
+            i_list.append(i_prec)
+            P_list.append(i_prec * d / 60)  # Precipitação acumulada em mm
+        i_final.append(i_list)
+        P_final.append(P_list)
+
+    # Cria os DataFrames para intensidade e precipitação
+    columns = [f'i_RP_{rp}' for rp in return_periods]
+    df_intensity = pd.DataFrame(i_final).transpose()
+    df_intensity.columns = columns
+    df_intensity['d'] = durations
+
+    columns = [f'P_RP_{rp}' for rp in return_periods]
+    df_precipitation = pd.DataFrame(P_final).transpose()
+    df_precipitation.columns = columns
+    df_precipitation['d'] = durations
+
+    # Salva as tabelas em arquivos CSV, se necessário
+    if save_tables:
+        output_dir = f'{directory}'
+        intensity_file = f'{output_dir}/{name_file}{disag_factor}_intensityfromIDF_subdaily.csv'
+        precipitation_file = f'{output_dir}/{name_file}{disag_factor}_precipitationfromIDF_subdaily.csv'
+        
+        df_intensity.to_csv(intensity_file, index=False)
+        df_precipitation.to_csv(precipitation_file, index=False)
+
+    return df_intensity, df_precipitation
+    
 
 
 if __name__ == '__main__':
@@ -532,4 +626,10 @@ if __name__ == '__main__':
         durations=[5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60],
         return_periods=[2, 5, 10, 25, 50, 100, 200, 500, 1000],
         save_plot=True,
+    )
+    
+    df_intensity, df_precipitation = generate_idf_tables(
+        name_file='inmet',
+        disag_factor='p0.2', 
+        save_tables=True
     )
