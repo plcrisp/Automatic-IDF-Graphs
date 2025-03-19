@@ -75,22 +75,32 @@ def calculate_theoretical_max_precipitations(
     return_distribution_name: bool = False
 ):
     """
-    Calcula as precipitações máximas teóricas para diferentes períodos de retorno.
+    Calcula as precipitações máximas teóricas para diferentes períodos de retorno, ajustando os dados históricos 
+    a uma distribuição estatística e utilizando a função inversa da probabilidade acumulada (PPF) para estimar 
+    valores extremos.
 
     Parâmetros:
-        file_name (str): Nome base do arquivo CSV contendo os dados de precipitação máxima subdiária.
-        duration (int): Duração específica do evento de precipitação (ex.: 1 hora, 6 horas).
-        return_periods (list): Lista de períodos de retorno (em anos) para cálculo das precipitações máximas.
-        results_dir (str, opcional): Diretório onde os arquivos CSV estão armazenados. Padrão: 'results'.
+        file_name (str): Nome base do arquivo CSV contendo os dados de precipitação máxima subdiária. O arquivo deve 
+                         estar localizado no diretório especificado por `results_dir` e conter uma coluna nomeada 
+                         como `Max_{duration}` para cada duração específica.
+        duration (int): Duração específica do evento de precipitação em horas ou minutos (ex.: 1 hora, 6 horas). Deve 
+                        corresponder ao nome da coluna `Max_{duration}` no arquivo CSV.
+        return_periods (list): Lista de períodos de retorno (em anos) para os quais as precipitações máximas teóricas 
+                               serão calculadas. Exemplo: [2, 5, 10, 25, 50, 100].
+        results_dir (str, opcional): Diretório onde os arquivos CSV de precipitação máxima estão armazenados. Padrão: 'results'.
         disag_factor (str, opcional): Fator de desagregação usado para ajustar o nome do arquivo ou processamento. 
-                                               Padrão: 'nan'.
-        plot (bool, opcional): Indica se um gráfico deve ser gerado. Padrão: False.
-        return_distribution_name (bool, opcional): Indica se o nome da distribuição utilizada deve ser retornado. 
-                                                   Padrão: False.
+                                      Valores possíveis incluem 'nan' (padrão), 'original', 'bl' ou outros fatores personalizados.
+        plot (bool, opcional): Indica se um gráfico comparativo entre os valores observados e teóricos deve ser gerado. 
+                               Padrão: False.
+        return_distribution_name (bool, opcional): Indica se o nome da distribuição utilizada no ajuste deve ser retornado 
+                                                   junto com os resultados. Padrão: False.
 
     Retorna:
-        np.ndarray: Array com as precipitações máximas teóricas calculadas para os períodos de retorno.
-        str (opcional): Nome da distribuição utilizada, se `return_distribution_name=True`.
+        np.ndarray: Array com as precipitações máximas teóricas calculadas para os períodos de retorno fornecidos. Cada valor 
+                    corresponde à precipitação esperada para o respectivo período de retorno.
+        str (opcional): Nome da distribuição utilizada no ajuste (ex.: 'gumbel_r', 'genextreme'), retornado apenas se 
+                        `return_distribution_name=True`.
+
     """
     # Ajusta o fator de desagregação
     disag = (
@@ -221,7 +231,7 @@ def calculate_idf_table(
         if disag_factor == 'bl':
             file_name = f"complete_{file_name}"
         
-        file_path = f"{directory}/IDFsubdaily_table_{file_name}_{dist_name}_{disag_factor}.csv"
+        file_path = f"{directory}/IDF_table_{file_name}_{dist_name}_{disag_factor}.csv"
         df.to_csv(file_path, index=False)
 
     # Retorna os resultados necessários

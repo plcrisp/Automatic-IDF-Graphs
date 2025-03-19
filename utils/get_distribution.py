@@ -413,7 +413,7 @@ def get_top_fitted_distributions(data, results, n):
 
 
 
-def get_distribution(name_file, n_distributions=3, duration=None, disag_factor=None, directory='results'):
+def get_distribution(name_file, n_distributions=3, duration=None, disag_factor=None, directory='../results'):
     """
     Função principal para carregar, analisar e ajustar distribuições a dados de precipitação (diários ou subdiários).
 
@@ -484,8 +484,8 @@ def get_distribution(name_file, n_distributions=3, duration=None, disag_factor=N
 
 if __name__ == "__main__":
         
-    get_distribution('inmet_conv')
-    #get_distribution('inmet','Max_6h','_p0.2')
+    #get_distribution('inmet')
+    get_distribution('inmet','Max_6h','_p0.2')
     
     
     
