@@ -485,7 +485,7 @@ def get_distribution(name_file, n_distributions=3, duration=None, disag_factor=N
 if __name__ == "__main__":
         
     #get_distribution('inmet')
-    get_distribution('inmet','Max_6h','_p0.2')
+    get_distribution(name_file='inmet',duration='Max_6h',disag_factor='_p0.2')
     
     
     
