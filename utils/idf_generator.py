@@ -450,7 +450,7 @@ def get_final_idf_params(
             'm': [m]
         }
         df = pd.DataFrame(data)
-        df.to_csv(f'{directory}/IDF_params_{name_file}.csv', index=False)
+        df.to_csv(f'{directory}/IDF_params_{name_file}_{disag_factor}.csv', index=False)
 
     # Plota as curvas IDF, se necessário
     if plot:
@@ -556,11 +556,9 @@ def generate_idf_tables(
             - df_precipitation (pd.DataFrame): Tabela de precipitações acumuladas para diferentes 
                                                durações e períodos de retorno.
     """
-    # Ajusta o nome da estação e o fator de desagregação com base no método de downscaling
-    disag_factor = f'_{disag_factor}'
 
     # Constrói o caminho do arquivo IDF com base no nome da estação e no diretório fornecido
-    idf_file_path = f'{directory}/IDF_params_{name_file}.csv'
+    idf_file_path = f'{directory}/IDF_params_{name_file}_{disag_factor}.csv'
 
    # Lê os parâmetros IDF do arquivo CSV correspondente à estação
     try:
@@ -610,8 +608,8 @@ def generate_idf_tables(
     # Salva as tabelas em arquivos CSV, se necessário
     if save_tables:
         output_dir = f'{directory}'
-        intensity_file = f'{output_dir}/{name_file}{disag_factor}_intensityfromIDF_subdaily.csv'
-        precipitation_file = f'{output_dir}/{name_file}{disag_factor}_precipitationfromIDF_subdaily.csv'
+        intensity_file = f'{output_dir}/{name_file}_{disag_factor}_intensityfromIDF_subdaily.csv'
+        precipitation_file = f'{output_dir}/{name_file}_{disag_factor}_precipitationfromIDF_subdaily.csv'
         
         df_intensity.to_csv(intensity_file, index=False)
         df_precipitation.to_csv(precipitation_file, index=False)
